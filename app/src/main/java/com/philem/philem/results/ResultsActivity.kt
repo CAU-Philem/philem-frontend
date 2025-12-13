@@ -3,7 +3,7 @@ package com.philem.philem.results
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,18 +12,15 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,39 +32,54 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.philem.philem.R
 import com.philem.philem.data.model.ProductItem
 import com.philem.philem.ui.theme.PhilemTheme
 
 class ResultsActivity : ComponentActivity() {
+
+    private val viewModel: ResultsViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val searchQuery = intent.getStringExtra("query")?.replace("\n", "") ?: "검색어 없음"
 
-        enableEdgeToEdge()
+        viewModel.loadPriceData(modelId = 1L)
+
         setContent {
+            val snapshots by viewModel.priceSnapshots.collectAsState()
+            val selectedGrade by viewModel.selectedGrade.collectAsState()
+            val productSet by viewModel.productSet.collectAsState()
+
             PhilemTheme {
-                val viewModel: ResultsViewModel = viewModel()
-                val state by viewModel.uiState.collectAsState()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
 
-                LaunchedEffect(key1 = searchQuery) {
-                    viewModel.searchProducts(searchQuery)
-                }
-
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ResultsScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        searchQuery = searchQuery,
-                        state = state,
-                        onGradeSelected = { grade -> viewModel.setGradeFilter(grade) },
-                        onBackClick = { finish() } // 뒤로가기 클릭 시 액티비티 종료
-                    )
+                        // 가격 차트
+                        productSet?.let { set ->
+                            PriceChart(
+                                snapshots = snapshots,
+                                productSet = set,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+// ==============================
+// Composable 함수들
+// ==============================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +88,7 @@ fun ResultsScreen(
     searchQuery: String,
     state: ResultsUiState,
     onGradeSelected: (String) -> Unit,
-    onBackClick: () -> Unit // 뒤로가기 클릭 이벤트 핸들러
+    onBackClick: () -> Unit
 ) {
     val regionOptions = listOf("전체 지역", "서울", "경기", "부산", "대구")
     var expanded by remember { mutableStateOf(false) }
@@ -109,7 +121,7 @@ fun ResultsScreen(
                         contentDescription = "뒤로가기",
                         modifier = Modifier
                             .size(24.dp)
-                            .clickable { onBackClick() } // 클릭 시 onBackClick 호출
+                            .clickable { onBackClick() }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -154,7 +166,7 @@ fun ResultsScreen(
                             label = { Text("지역 선택") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier
-                                .menuAnchor()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth(),
                             textStyle = TextStyle(fontSize = 14.sp)
                         )
@@ -290,7 +302,6 @@ fun ProductItemCard(product: ProductItem) {
     }
 }
 
-
 @Preview(showBackground = true)
 @Composable
 fun ResultsScreenPreview() {
@@ -311,3 +322,4 @@ fun ResultsScreenPreview() {
         )
     }
 }
+
