@@ -11,7 +11,7 @@ object RetrofitClient {
 
     // 에뮬레이터에서 로컬 서버(localhost:10000) 접근용 주소
     // 10.0.2.2는 Android 에뮬레이터에서 호스트 머신의 localhost를 가리킴
-    private const val BASE_URL = "http://10.0.2.2:10000/"
+    private const val BASE_URL = "http://10.0.2.2:10001/"
     private const val REGION_BASE_URL = "http://10.0.2.2:10001/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {

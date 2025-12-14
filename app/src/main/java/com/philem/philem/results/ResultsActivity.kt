@@ -232,6 +232,21 @@ class ResultsActivity : ComponentActivity() {
                             }
                         }
                     }
+
+                    if (showRegionSearch) {
+                        RegionSearchDialog(
+                            query = regionSearchQuery,
+                            results = regionSearchResults,
+                            isLoading = regionSearchLoading,
+                            error = regionSearchError,
+                            onDismiss = { showRegionSearch = false },
+                            onQueryChange = viewModel::searchRegion,
+                            onRegionSelected = {
+                                viewModel.selectRegion(it)
+                                showRegionSearch = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -614,7 +629,7 @@ private fun RecommendationCard(item: ListingSummary) {
 
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "${item.price.formatAsWon()}원",
+                    text = "${item.price?.formatAsWon() ?: "가격 미정"}원",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = Color(0xFF1E88E5)
@@ -744,9 +759,17 @@ private fun RegionSearchDialog(
     )
 }
 
-private fun Long.formatAsWon(): String = String.format("%,d", this)
+private fun Long.formatAsWon(): String = String.format(java.util.Locale.getDefault(), "%,d", this)
 
 private fun String.formatAsDayTime(): String = runCatching {
-    val dateTime = OffsetDateTime.parse(this)
-    dateTime.format(DateTimeFormatter.ofPattern("MM.dd HH:mm"))
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val dateTime = OffsetDateTime.parse(this)
+        dateTime.format(DateTimeFormatter.ofPattern("MM.dd HH:mm"))
+    } else {
+        // Fallback for API < 26
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+        val outputFormat = java.text.SimpleDateFormat("MM.dd HH:mm", java.util.Locale.getDefault())
+        val date = inputFormat.parse(this.substringBefore('+').substringBefore('Z'))
+        date?.let { outputFormat.format(it) } ?: this
+    }
 }.getOrElse { this }

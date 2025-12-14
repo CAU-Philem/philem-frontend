@@ -71,23 +71,23 @@ data class BundleItemRef(
 )
 
 // 5. 추천 매물 API 응답
+// ApiResponses.kt 수정
 data class RecommendationsResponse(
-    val modelId: Long,
-    val userRegionId: Long,
-    val radiusKm: Int,
-    val byCondition: Map<String, List<ListingSummary>>
+    @SerializedName("model_id") val modelId: Long,
+    @SerializedName("user_region_id") val userRegionId: Long,
+    @SerializedName("radius_km") val radiusKm: Int,
+    @SerializedName("by_condition") val byCondition: Map<String, List<ListingSummary>>
 )
-
 data class ListingSummary(
-    val listingSeq: Long,
-    val listingId: String,
-    val modelId: Long,
-    val regionId: Long,
-    val price: Long,
+    @SerializedName("listing_seq") val listingSeq: Long,
+    @SerializedName("listing_id") val listingId: String,
+    @SerializedName("model_id") val modelId: Long,
+    @SerializedName("region_id") val regionId: Long,
+    val price: Long?, // null이 들어올 수 있으므로 Nullable로 변경 권장
     val condition: String,
-    val postUrl: String,
+    @SerializedName("post_url") val postUrl: String,
     @SerializedName("thumbnail_url") val thumbnailUrl: String?,
-    val updatedAt: String
+    @SerializedName("updated_at") val updatedAt: String
 )
 
 data class RegionSearchResult(
