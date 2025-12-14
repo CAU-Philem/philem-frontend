@@ -86,6 +86,13 @@ data class ListingSummary(
     val price: Long,
     val condition: String,
     val postUrl: String,
+    @SerializedName("thumbnail_url") val thumbnailUrl: String?,
     val updatedAt: String
 )
 
+data class RegionSearchResult(
+    val id: Long,
+    val name: String,
+    val lat: Double,
+    val lng: Double
+)

@@ -53,6 +53,16 @@ interface PricingApiService {
         @Query("modelId") modelId: Long,
         @Query("userRegionId") userRegionId: Long,
         @Query("radiusKm") radiusKm: Int = 10,
-        @Query("limit") limit: Int = 120
+        @Query("limit") limit: Int = 10
     ): RecommendationsResponse
+
+    /**
+     * 6. 지역 검색 API
+     * GET /regions/search
+     */
+    @GET("/regions/search")
+    suspend fun searchRegions(
+        @Query("partialInput") partialInput: String,
+        @Query("limit") limit: Int = 6
+    ): List<RegionSearchResult>
 }

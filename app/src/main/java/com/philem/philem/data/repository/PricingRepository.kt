@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 class PricingRepository {
 
     private val api = RetrofitClient.pricingApi
+    private val regionApi = RetrofitClient.regionApi
 
     /**
      * URL 분석
@@ -65,10 +66,22 @@ class PricingRepository {
         modelId: Long,
         userRegionId: Long,
         radiusKm: Int = 10,
-        limit: Int = 120
+        limit: Int = 10
     ): Result<RecommendationsResponse> = withContext(Dispatchers.IO) {
         try {
             val response = api.getRecommendations(modelId, userRegionId, radiusKm, limit)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 지역 검색
+     */
+    suspend fun searchRegions(partialInput: String, limit: Int = 6): Result<List<RegionSearchResult>> = withContext(Dispatchers.IO) {
+        try {
+            val response = regionApi.searchRegions(partialInput, limit)
             Result.success(response)
         } catch (e: Exception) {
             Result.failure(e)

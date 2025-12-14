@@ -13,6 +13,8 @@ import com.philem.philem.domain.pricing.dto.ModelPriceSnapshot
 import com.philem.philem.domain.pricing.dto.ProductSet
 import com.philem.philem.domain.pricing.dto.AnalyzeUrlResponse
 import com.philem.philem.domain.pricing.dto.ListingItem
+import com.philem.philem.domain.pricing.dto.ListingSummary
+import com.philem.philem.domain.pricing.dto.RegionSearchResult
 import kotlinx.coroutines.launch
 import android.util.Log
 
@@ -33,6 +35,11 @@ data class ResultsUiState(
 class ResultsViewModel : ViewModel() {
 
     private val repository = PricingRepository()
+
+    private val _userRegionName = MutableStateFlow("역삼동")
+    val userRegionName: StateFlow<String> = _userRegionName.asStateFlow()
+
+    private val _userRegionId = MutableStateFlow(6035L)
 
     private val _targetUrl = MutableStateFlow("")
     val targetUrl: StateFlow<String> = _targetUrl.asStateFlow()
@@ -57,6 +64,33 @@ class ResultsViewModel : ViewModel() {
 
     private val _modelName = MutableStateFlow("")
     val modelName: StateFlow<String> = _modelName.asStateFlow()
+
+    private val _recommendations = MutableStateFlow<Map<String, List<ListingSummary>>>(emptyMap())
+    val recommendations: StateFlow<Map<String, List<ListingSummary>>> = _recommendations.asStateFlow()
+
+    private val _recommendationsLoading = MutableStateFlow(false)
+    val recommendationsLoading: StateFlow<Boolean> = _recommendationsLoading.asStateFlow()
+
+    private val _recommendationsError = MutableStateFlow<String?>(null)
+    val recommendationsError: StateFlow<String?> = _recommendationsError.asStateFlow()
+
+    private val _selectedRecommendationGrade = MutableStateFlow("B")
+    val selectedRecommendationGrade: StateFlow<String> = _selectedRecommendationGrade.asStateFlow()
+
+    private val _regionSearchQuery = MutableStateFlow("")
+    val regionSearchQuery: StateFlow<String> = _regionSearchQuery.asStateFlow()
+
+    private val _regionSearchResults = MutableStateFlow<List<RegionSearchResult>>(emptyList())
+    val regionSearchResults: StateFlow<List<RegionSearchResult>> = _regionSearchResults.asStateFlow()
+
+    private val _regionSearchLoading = MutableStateFlow(false)
+    val regionSearchLoading: StateFlow<Boolean> = _regionSearchLoading.asStateFlow()
+
+    private val _regionSearchError = MutableStateFlow<String?>(null)
+    val regionSearchError: StateFlow<String?> = _regionSearchError.asStateFlow()
+
+    private var lastRecommendationModelId: Long? = null
+    private var lastRecommendationPreferredGrade: String = "B"
 
     /**
      * 가격 데이터 로드 (실제 API 사용)
@@ -96,6 +130,7 @@ class ResultsViewModel : ViewModel() {
                     hasBody = true,
                     hasLens = false
                 )
+                fetchRecommendationsForModel(modelId, condition)
             }.onFailure { e ->
                 _error.value = "가격 비교 실패: ${e.message}"
                 _productSet.value = null
@@ -150,12 +185,72 @@ class ResultsViewModel : ViewModel() {
         _selectedGrade.value = grade
     }
 
+    fun selectRecommendationGrade(grade: String) {
+        _selectedRecommendationGrade.value = grade
+    }
+
     fun updateModelName(name: String) {
         _modelName.value = name
     }
 
+    fun updateUserRegion(regionId: Long, regionName: String) {
+        val changed = regionId != _userRegionId.value
+        _userRegionId.value = regionId
+        _userRegionName.value = regionName
+        if (changed) {
+            retryRecommendations()
+        }
+    }
+
     fun setTargetUrl(url: String) {
         _targetUrl.value = url
+    }
+
+    fun retryRecommendations() {
+        val modelId = lastRecommendationModelId ?: return
+        fetchRecommendationsForModel(modelId, lastRecommendationPreferredGrade)
+    }
+
+    fun searchRegion(query: String) {
+        _regionSearchQuery.value = query
+        if (query.isBlank()) {
+            _regionSearchResults.value = emptyList()
+            _regionSearchError.value = null
+            return
+        }
+
+        viewModelScope.launch {
+            _regionSearchLoading.value = true
+            _regionSearchError.value = null
+            Log.d("ResultsViewModel", "[RegionSearch] query='$query'")
+
+            val result = repository.searchRegions(query)
+            result
+                .onSuccess { list ->
+                    Log.d("ResultsViewModel", "[RegionSearch] success size=${list.size}")
+                    _regionSearchResults.value = list
+                }
+                .onFailure { throwable ->
+                    Log.e("ResultsViewModel", "[RegionSearch] failure: ${throwable.message}", throwable)
+                    _regionSearchResults.value = emptyList()
+                    _regionSearchError.value = throwable.message
+                }
+
+            _regionSearchLoading.value = false
+        }
+    }
+
+    fun selectRegion(region: RegionSearchResult) {
+        updateUserRegion(region.id, region.name)
+        _regionSearchQuery.value = region.name
+        _regionSearchResults.value = emptyList()
+        _regionSearchError.value = null
+    }
+
+    fun beginRegionSearch() {
+        val seed = _userRegionName.value.takeIf { it.isNotBlank() && it != "내 동네" } ?: ""
+        _regionSearchQuery.value = seed
+        searchRegion(seed)
     }
 
     /**
@@ -279,6 +374,7 @@ class ResultsViewModel : ViewModel() {
                                     hasLens = item.role == "LENS"
                                 )
                             }
+                            fetchRecommendationsForModel(item.modelId, item.condition)
                         }
                         .onFailure { throwable ->
                             Log.e("ResultsViewModel", "3. 가격 비교 실패: ${throwable.message}", throwable)
@@ -291,6 +387,7 @@ class ResultsViewModel : ViewModel() {
                                 hasBody = item.role == "BODY",
                                 hasLens = item.role == "LENS"
                             )
+                            fetchRecommendationsForModel(item.modelId, item.condition)
                         }
                 } else {
                     Log.e("ResultsViewModel", "2. 스냅샷 데이터 없음!")
@@ -390,6 +487,7 @@ class ResultsViewModel : ViewModel() {
                     hasBody = true,
                     hasLens = true
                 )
+                fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
             .onFailure { throwable ->
                 Log.e("ResultsViewModel", "5. 번들 비교 실패: ${throwable.message}", throwable)
@@ -403,6 +501,7 @@ class ResultsViewModel : ViewModel() {
                     hasBody = true,
                     hasLens = true
                 )
+                fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
 
         _isLoading.value = false
@@ -443,5 +542,44 @@ class ResultsViewModel : ViewModel() {
                 )
             } else null
         }.sortedWith(compareBy({ it.sold_year }, { it.sold_month }))
+    }
+
+    private fun fetchRecommendationsForModel(modelId: Long, preferredGrade: String) {
+        lastRecommendationModelId = modelId
+        lastRecommendationPreferredGrade = preferredGrade
+
+        viewModelScope.launch {
+            _recommendationsLoading.value = true
+            _recommendationsError.value = null
+
+            val regionId = _userRegionId.value
+            Log.d("ResultsViewModel", "[Recommendations] requesting model=$modelId region=$regionId grade=$preferredGrade")
+            val result = repository.getRecommendations(modelId, regionId)
+            result
+                .onSuccess { response ->
+                     val byCondition = response.byCondition ?: emptyMap()
+                     _recommendations.value = byCondition
+                     val gradesWithData = byCondition.filterValues { it.isNotEmpty() }.keys
+
+                     val desiredGrade = when {
+                         byCondition[_selectedRecommendationGrade.value]?.isNotEmpty() == true -> _selectedRecommendationGrade.value
+                         byCondition[preferredGrade]?.isNotEmpty() == true -> preferredGrade
+                         gradesWithData.isNotEmpty() -> gradesWithData.first()
+                         else -> preferredGrade
+                     }
+                     _selectedRecommendationGrade.value = desiredGrade
+                     if (response.userRegionId != _userRegionId.value) {
+                         _userRegionId.value = response.userRegionId
+                     }
+                    Log.d("ResultsViewModel", "[Recommendations] success grades=${byCondition.keys} selected=$desiredGrade")
+                 }
+                .onFailure { throwable ->
+                    Log.e("ResultsViewModel", "[Recommendations] failure: ${throwable.message}", throwable)
+                     _recommendations.value = emptyMap()
+                     _recommendationsError.value = throwable.message ?: "추천 불러오기 실패"
+                 }
+
+            _recommendationsLoading.value = false
+        }
     }
 }

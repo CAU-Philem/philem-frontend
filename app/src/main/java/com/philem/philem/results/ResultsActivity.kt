@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +37,17 @@ import androidx.compose.ui.unit.sp
 import com.philem.philem.R
 import com.philem.philem.data.model.ProductItem
 import com.philem.philem.domain.pricing.dto.ModelPriceSnapshot
+import com.philem.philem.domain.pricing.dto.ListingSummary
+import com.philem.philem.domain.pricing.dto.RegionSearchResult
 import com.philem.philem.ui.theme.PhilemTheme
+import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 class ResultsActivity : ComponentActivity() {
 
@@ -70,6 +82,18 @@ class ResultsActivity : ComponentActivity() {
             val error by viewModel.error.collectAsState()
             val analyzeResult by viewModel.analyzeResult.collectAsState()
             val targetUrl by viewModel.targetUrl.collectAsState()
+            val recommendations by viewModel.recommendations.collectAsState()
+            val recommendationsLoading by viewModel.recommendationsLoading.collectAsState()
+            val recommendationsError by viewModel.recommendationsError.collectAsState()
+            val selectedRecommendationGrade by viewModel.selectedRecommendationGrade.collectAsState()
+            val regionName by viewModel.userRegionName.collectAsState()
+            val modelName by viewModel.modelName.collectAsState()
+            val regionSearchQuery by viewModel.regionSearchQuery.collectAsState()
+            val regionSearchResults by viewModel.regionSearchResults.collectAsState()
+            val regionSearchLoading by viewModel.regionSearchLoading.collectAsState()
+            val regionSearchError by viewModel.regionSearchError.collectAsState()
+            var showRegionSearch by remember { mutableStateOf(false) }
+
 
             PhilemTheme {
                 Surface(
@@ -100,8 +124,25 @@ class ResultsActivity : ComponentActivity() {
                                             productSet = set,
                                             modifier = Modifier.fillMaxWidth()
                                         )
-                                    }
-                                }
+
+                                        Spacer(modifier = Modifier.height(32.dp))
+
+                                        RecommendationSection(
+                                            regionName = regionName,
+                                            productName = set.name.ifBlank { modelName.ifBlank { "이 상품" } },
+                                            recommendations = recommendations,
+                                            selectedGrade = selectedRecommendationGrade,
+                                            onGradeSelected = viewModel::selectRecommendationGrade,
+                                            isLoading = recommendationsLoading,
+                                            error = recommendationsError,
+                                            onRetry = viewModel::retryRecommendations,
+                                            onRegionClick = {
+                                                viewModel.beginRegionSearch()
+                                                showRegionSearch = true
+                                            }
+                                        )
+                                     }
+                                 }
                             }
 
                             else -> {
@@ -443,3 +484,269 @@ fun ResultsScreenPreview() {
     }
 }
 
+@Composable
+private fun RecommendationSection(
+    regionName: String,
+    productName: String,
+    recommendations: Map<String, List<ListingSummary>>,
+    selectedGrade: String,
+    onGradeSelected: (String) -> Unit,
+    isLoading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
+    onRegionClick: () -> Unit
+) {
+    val gradeOptions = listOf("A", "B", "C")
+    val selectedList = recommendations[selectedGrade].orEmpty()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onRegionClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${regionName}에서 ${productName} 확인하기",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "동일 모델 다른 등급 추천 매물",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+            }
+            Text(
+                text = "지역 변경",
+                color = Color(0xFF1E88E5),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            gradeOptions.forEach { grade ->
+                FilterChip(
+                    selected = selectedGrade == grade,
+                    onClick = { onGradeSelected(grade) },
+                    label = { Text("${grade}급") }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        when {
+            isLoading -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            error != null -> {
+                RecommendationErrorCard(error = error, onRetry = onRetry)
+            }
+
+            selectedList.isEmpty() -> {
+                RecommendationEmptyState()
+            }
+
+            else -> {
+                RecommendationList(list = selectedList)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationList(list: List<ListingSummary>) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(list, key = { it.listingSeq }) { item ->
+            RecommendationCard(item)
+        }
+    }
+}
+
+@Composable
+private fun RecommendationCard(item: ListingSummary) {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier
+            .width(220.dp)
+            .clickable {
+                runCatching {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
+                    context.startActivity(intent)
+                }
+            },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .background(Color(0xFFE0E0E0))
+            ) {
+                AsyncImage(
+                    model = item.thumbnailUrl ?: item.postUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Text(
+                    text = "${item.condition}급",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xAA000000))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "${item.price.formatAsWon()}원",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E88E5)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = item.postUrl,
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "업데이트 ${item.updatedAt.formatAsDayTime()}",
+                    fontSize = 11.sp,
+                    color = Color(0xFF757575)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationErrorCard(error: String, onRetry: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("추천 데이터를 불러오지 못했습니다.", fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(error, fontSize = 12.sp, color = Color(0xFF5D4037))
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = onRetry) {
+                Text("다시 시도")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationEmptyState() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("해당 등급의 추천 매물이 없습니다.", color = Color.Gray, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun RegionSearchDialog(
+    query: String,
+    results: List<RegionSearchResult>,
+    isLoading: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onQueryChange: (String) -> Unit,
+    onRegionSelected: (RegionSearchResult) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        title = {
+            Text(text = "동 검색", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("예: 역삼, 서초") }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                when {
+                    isLoading -> {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    error != null -> {
+                        Text(text = error, color = Color.Red, fontSize = 12.sp)
+                    }
+
+                    results.isEmpty() -> {
+                        Text(text = "검색 결과가 없습니다.", color = Color.Gray, fontSize = 12.sp)
+                    }
+
+                    else -> {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(results) { region ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onRegionSelected(region) }
+                                        .background(Color(0xFFF5F5F5))
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(region.name, fontWeight = FontWeight.Bold)
+                                        Text("ID: ${region.id}", fontSize = 11.sp, color = Color.Gray)
+                                    }
+                                    Text(text = "선택", color = Color(0xFF1E88E5), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+private fun Long.formatAsWon(): String = String.format("%,d", this)
+
+private fun String.formatAsDayTime(): String = runCatching {
+    val dateTime = OffsetDateTime.parse(this)
+    dateTime.format(DateTimeFormatter.ofPattern("MM.dd HH:mm"))
+}.getOrElse { this }
