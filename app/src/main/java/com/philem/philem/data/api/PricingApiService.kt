@@ -67,4 +67,13 @@ interface PricingApiService {
         @Query("partialInput") partialInput: String,
         @Query("limit") limit: Int = 6
     ): List<RegionSearchResult>
+
+    /**
+     * 7. 연관 제품 추천 API
+     * POST /listings/related
+     */
+    @POST("/listings/related")
+    suspend fun getRelatedProducts(
+        @Body request: RelatedProductsRequest
+    ): RelatedProductsResponse
 }

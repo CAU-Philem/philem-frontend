@@ -46,6 +46,7 @@ import android.net.Uri
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.net.toUri
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
@@ -143,6 +144,17 @@ class ResultsActivity : ComponentActivity() {
                                             },
                                             selectedItemType = selectedItemType,
                                             onToggleItemType = viewModel::toggleItemType
+                                        )
+
+                                        Spacer(modifier = Modifier.height(32.dp))
+
+                                        RelatedProductsSection(
+                                            products = viewModel.relatedProducts.collectAsState().value,
+                                            filters = viewModel.relatedProductFilters.collectAsState().value,
+                                            isLoading = viewModel.relatedProductsLoading.collectAsState().value,
+                                            error = viewModel.relatedProductsError.collectAsState().value,
+                                            onFilterToggle = viewModel::toggleRelatedFilter,
+                                            onClearFilters = viewModel::clearRelatedFilters
                                         )
                                      }
                                  }
@@ -628,7 +640,7 @@ private fun RecommendationCard(item: ListingSummary) {
             .width(220.dp)
             .clickable {
                 runCatching {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
+                    val intent = Intent(Intent.ACTION_VIEW, item.postUrl.toUri())
                     context.startActivity(intent)
                 }
             },
@@ -836,3 +848,321 @@ private fun String.formatAsDate(): String = runCatching {
         date?.let { outputFormat.format(it) } ?: this
     }
 }.getOrElse { this }
+
+@Composable
+private fun RelatedProductsSection(
+    products: List<com.philem.philem.domain.pricing.dto.RelatedProductItem>,
+    filters: ResultsViewModel.RelatedProductFilters,
+    isLoading: Boolean,
+    error: String?,
+    onFilterToggle: (String, String) -> Unit,
+    onClearFilters: () -> Unit
+) {
+    val totalFilterCount = filters.conditions.size +
+                          filters.brands.size +
+                          filters.cameraTypes.size +
+                          filters.mounts.size +
+                          filters.sensorFormats.size
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "연관 제품 추천",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+
+                if (totalFilterCount > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "($totalFilterCount)",
+                        fontSize = 14.sp,
+                        color = Color(0xFF1E88E5),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 구현 상태 표시
+                Text(
+                    text = "멀티 필터 지원",
+                    fontSize = 10.sp,
+                    color = Color(0xFF4CAF50),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+
+                // 필터 초기화 버튼
+                if (totalFilterCount > 0) {
+                    TextButton(
+                        onClick = onClearFilters,
+                        modifier = Modifier.height(28.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = "초기화",
+                            fontSize = 11.sp,
+                            color = Color(0xFFE53935)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            // 왼쪽: 필터 메뉴
+            Column(
+                modifier = Modifier
+                    .width(140.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF5F5F5))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterSection(
+                    title = "등급",
+                    options = listOf("A", "B", "C"),
+                    selected = filters.conditions,
+                    onToggle = { onFilterToggle("condition", it) }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                FilterSection(
+                    title = "브랜드",
+                    options = listOf("SONY", "CANON", "NIKON"),
+                    selected = filters.brands,
+                    onToggle = { onFilterToggle("brand", it) }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                FilterSection(
+                    title = "카메라 타입",
+                    options = listOf("MIRRORLESS", "DSLR"),
+                    selected = filters.cameraTypes,
+                    onToggle = { onFilterToggle("cameraType", it) },
+                    displayNames = mapOf("MIRRORLESS" to "미러리스", "DSLR" to "DSLR")
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                FilterSection(
+                    title = "센서 크기",
+                    options = listOf("FULL_FRAME", "APS_C"),
+                    selected = filters.sensorFormats,
+                    onToggle = { onFilterToggle("sensorFormat", it) },
+                    displayNames = mapOf("FULL_FRAME" to "풀프레임", "APS_C" to "APS-C")
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 오른쪽: 상품 리스트
+            Column(modifier = Modifier.weight(1f)) {
+                when {
+                    isLoading -> {
+                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    error != null -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("연관 제품을 불러오지 못했습니다.", fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(error, fontSize = 12.sp, color = Color(0xFF5D4037))
+                            }
+                        }
+                    }
+
+                    products.isEmpty() -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Text("해당 조건의 상품이 없습니다.", color = Color.Gray)
+                            }
+                        }
+                    }
+
+                    else -> {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(products, key = { it.listingItemId }) { product ->
+                                RelatedProductCard(product)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSection(
+    title: String,
+    options: List<String>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    displayNames: Map<String, String> = emptyMap()
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF616161)
+            )
+            if (selected.isNotEmpty()) {
+                Text(
+                    text = "${selected.size}",
+                    fontSize = 11.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E88E5))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        options.forEach { option ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle(option) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = option in selected,
+                    onCheckedChange = { onToggle(option) },
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = displayNames[option] ?: option,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.RelatedProductItem) {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier
+            .width(220.dp)
+            .clickable {
+                runCatching {
+                    val intent = Intent(Intent.ACTION_VIEW, product.postUrl.toUri())
+                    context.startActivity(intent)
+                }
+            },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .background(Color(0xFFE0E0E0)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = product.brand,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp,
+                    color = Color.Gray
+                )
+                Text(
+                    text = "${product.condition}급",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xAA000000))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = product.modelName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "${product.price?.formatAsWon() ?: "가격 미정"}원",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E88E5)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    product.cameraType?.let {
+                        Text(
+                            text = when(it) {
+                                "MIRRORLESS" -> "미러리스"
+                                "DSLR" -> "DSLR"
+                                else -> it
+                            },
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+
+                    product.sensorFormat?.let {
+                        Text(
+                            text = when(it) {
+                                "FULL_FRAME" -> "FF"
+                                "APS_C" -> "APS-C"
+                                else -> it
+                            },
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

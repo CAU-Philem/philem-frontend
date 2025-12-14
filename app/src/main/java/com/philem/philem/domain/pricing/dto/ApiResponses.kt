@@ -99,3 +99,45 @@ data class RegionSearchResult(
     val lat: Double,
     val lng: Double
 )
+
+// 연관 제품 추천 API 요청
+data class RelatedProductsRequest(
+    val mode: String = "FILTER", // FILTER, BODY_TO_LENS, LENS_TO_BODY, BUNDLE
+    @SerializedName("conditions") val conditions: List<String>? = null, // 멀티 선택 지원
+    @SerializedName("minPrice") val minPrice: Long? = null,
+    @SerializedName("maxPrice") val maxPrice: Long? = null,
+    @SerializedName("brands") val brands: List<String>? = null, // 멀티 선택 지원
+    @SerializedName("unitType") val unitType: String, // BODY, LENS - 필수
+    @SerializedName("cameraTypes") val cameraTypes: List<String>? = null, // 멀티 선택 지원
+    @SerializedName("mounts") val mounts: List<String>? = null, // 멀티 선택 지원
+    @SerializedName("sensorFormats") val sensorFormats: List<String>? = null, // 멀티 선택 지원
+    @SerializedName("bodyModelId") val bodyModelId: Long? = null,
+    @SerializedName("lensModelId") val lensModelId: Long? = null,
+    @SerializedName("presetLensBrand") val presetLensBrand: String? = null,
+    val page: Int = 0,
+    val size: Int = 20
+)
+
+// 연관 제품 추천 API 응답
+data class RelatedProductsResponse(
+    val items: List<RelatedProductItem>,
+    val page: Int,
+    val size: Int,
+    val total: Int
+)
+
+data class RelatedProductItem(
+    @SerializedName("listingItemId") val listingItemId: Long,
+    @SerializedName("modelId") val modelId: Long,
+    @SerializedName("modelName") val modelName: String,
+    val brand: String,
+    @SerializedName("unitType") val unitType: String,
+    @SerializedName("cameraType") val cameraType: String?,
+    val mount: String?,
+    @SerializedName("sensorFormat") val sensorFormat: String?,
+    val price: Long?,
+    val condition: String,
+    @SerializedName("updatedAt") val updatedAt: String,
+    @SerializedName("postUrl") val postUrl: String,
+    @SerializedName("salesCount") val salesCount: Int
+)

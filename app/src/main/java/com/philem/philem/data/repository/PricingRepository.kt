@@ -90,4 +90,16 @@ class PricingRepository {
             Result.failure(e)
         }
     }
+
+    /**
+     * 연관 제품 추천
+     */
+    suspend fun getRelatedProducts(request: RelatedProductsRequest): Result<RelatedProductsResponse> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.getRelatedProducts(request)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
