@@ -872,7 +872,7 @@ private fun RelatedProductsSection(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "연관 제품 추천",
+                    text = "연관 상품 추천",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
@@ -940,19 +940,28 @@ private fun RelatedProductsSection(
 
                 FilterSection(
                     title = "브랜드",
-                    options = listOf("SONY", "CANON", "NIKON"),
+                    options = listOf("Sony", "Nikon", "Canon", "Fujifilm", "Tamron", "Samyang", "Viltrox"),
                     selected = filters.brands,
                     onToggle = { onFilterToggle("brand", it) }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+                PriceFilterSection(
+                    minPrice = filters.minPrice,
+                    maxPrice = filters.maxPrice,
+                    onMinPriceChange = { onFilterToggle("minPrice", it) },
+                    onMaxPriceChange = { onFilterToggle("maxPrice", it) }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                 FilterSection(
                     title = "카메라 타입",
-                    options = listOf("MIRRORLESS", "DSLR"),
+                    options = listOf("Mirrorless", "DSLR"),
                     selected = filters.cameraTypes,
                     onToggle = { onFilterToggle("cameraType", it) },
-                    displayNames = mapOf("MIRRORLESS" to "미러리스", "DSLR" to "DSLR")
+                    displayNames = mapOf("Mirrorless" to "미러리스", "DSLR" to "DSLR")
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -995,15 +1004,38 @@ private fun RelatedProductsSection(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
                         ) {
-                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Text("해당 조건의 상품이 없습니다.", color = Color.Gray)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        "해당 조건의 상품이 없습니다.",
+                                        color = Color.Gray,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (totalFilterCount > 0) {
+                                        Text(
+                                            "필터를 조정해보세요",
+                                            color = Color(0xFF9E9E9E),
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
 
                     else -> {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(products, key = { it.listingItemId }) { product ->
+                        // 세로 스크롤 레이아웃으로 표시
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            products.forEach { product ->
                                 RelatedProductCard(product)
                             }
                         }
@@ -1072,11 +1104,74 @@ private fun FilterSection(
 }
 
 @Composable
+private fun PriceFilterSection(
+    minPrice: Long?,
+    maxPrice: Long?,
+    onMinPriceChange: (String) -> Unit,
+    onMaxPriceChange: (String) -> Unit
+) {
+    var minPriceText by remember(minPrice) { mutableStateOf(minPrice?.toString() ?: "") }
+    var maxPriceText by remember(maxPrice) { mutableStateOf(maxPrice?.toString() ?: "") }
+
+    Column {
+        Text(
+            text = "가격 범위",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF616161)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 최소 가격
+        OutlinedTextField(
+            value = minPriceText,
+            onValueChange = { newValue ->
+                if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                    minPriceText = newValue
+                    onMinPriceChange(newValue)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("최소 가격", fontSize = 11.sp) },
+            placeholder = { Text("예: 500000", fontSize = 11.sp) },
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF1E88E5),
+                unfocusedBorderColor = Color(0xFFBDBDBD)
+            )
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 최대 가격
+        OutlinedTextField(
+            value = maxPriceText,
+            onValueChange = { newValue ->
+                if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                    maxPriceText = newValue
+                    onMaxPriceChange(newValue)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("최대 가격", fontSize = 11.sp) },
+            placeholder = { Text("예: 2000000", fontSize = 11.sp) },
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 13.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF1E88E5),
+                unfocusedBorderColor = Color(0xFFBDBDBD)
+            )
+        )
+    }
+}
+
+@Composable
 private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.RelatedProductItem) {
     val context = LocalContext.current
     Card(
         modifier = Modifier
-            .width(220.dp)
+            .fillMaxWidth()
             .clickable {
                 runCatching {
                     val intent = Intent(Intent.ACTION_VIEW, product.postUrl.toUri())
@@ -1090,16 +1185,19 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .background(Color(0xFFE0E0E0)),
-                contentAlignment = Alignment.Center
+                    .height(200.dp)
+                    .background(Color(0xFFE0E0E0))
             ) {
-                Text(
-                    text = product.brand,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    color = Color.Gray
+                // 상품 썸네일 이미지 표시
+                AsyncImage(
+                    model = product.thumbnailUrl ?: product.postUrl,
+                    contentDescription = product.modelName,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    error = painterResource(id = R.drawable.img_main_camera),
+                    placeholder = painterResource(id = R.drawable.img_main_camera)
                 )
+
                 Text(
                     text = "${product.condition}급",
                     color = Color.White,

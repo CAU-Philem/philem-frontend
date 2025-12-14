@@ -621,6 +621,12 @@ class ResultsViewModel : ViewModel() {
             "sensorFormat" -> current.copy(
                 sensorFormats = if (value in current.sensorFormats) current.sensorFormats - value else current.sensorFormats + value
             )
+            "minPrice" -> current.copy(
+                minPrice = value.toLongOrNull()
+            )
+            "maxPrice" -> current.copy(
+                maxPrice = value.toLongOrNull()
+            )
             else -> current
         }
         fetchRelatedProducts()
@@ -640,6 +646,11 @@ class ResultsViewModel : ViewModel() {
     fun initializeRelatedProducts(modelId: Long, unitType: String) {
         baseModelId = modelId
         baseUnitType = unitType
+
+        // 필터 초기화 (빈 상태로 시작)
+        _relatedProductFilters.value = RelatedProductFilters()
+
+        Log.d("ResultsViewModel", "[RelatedProducts] 초기화: modelId=$modelId, unitType=$unitType")
         fetchRelatedProducts()
     }
 
@@ -656,10 +667,24 @@ class ResultsViewModel : ViewModel() {
 
             val filters = _relatedProductFilters.value
 
+            // 필터가 선택되었는지 확인
+            val hasFilters = filters.conditions.isNotEmpty() ||
+                            filters.brands.isNotEmpty() ||
+                            filters.cameraTypes.isNotEmpty() ||
+                            filters.mounts.isNotEmpty() ||
+                            filters.sensorFormats.isNotEmpty() ||
+                            filters.minPrice != null ||
+                            filters.maxPrice != null
+
+            // 필터 없으면 BODY_TO_LENS, 있으면 FILTER 모드
+            val mode = if (hasFilters) "FILTER" else "BODY_TO_LENS"
+
             Log.d("ResultsViewModel", "========== 연관 제품 추천 API 호출 시작 ==========")
             Log.d("ResultsViewModel", "[RelatedProducts] 기본 정보:")
             Log.d("ResultsViewModel", "  - modelId: $modelId")
             Log.d("ResultsViewModel", "  - unitType: $unitType")
+            Log.d("ResultsViewModel", "  - 필터 선택 여부: $hasFilters")
+            Log.d("ResultsViewModel", "  - 사용 모드: $mode")
 
             Log.d("ResultsViewModel", "[RelatedProducts] 선택된 필터:")
             Log.d("ResultsViewModel", "  - conditions: ${filters.conditions.joinToString()}")
@@ -670,38 +695,39 @@ class ResultsViewModel : ViewModel() {
             Log.d("ResultsViewModel", "  - minPrice: ${filters.minPrice}")
             Log.d("ResultsViewModel", "  - maxPrice: ${filters.maxPrice}")
 
-            // 멀티 필터 지원: 선택된 모든 값을 리스트로 전송
             val request = com.philem.philem.domain.pricing.dto.RelatedProductsRequest(
-                mode = "FILTER",
+                mode = mode,
                 conditions = filters.conditions.takeIf { it.isNotEmpty() }?.toList(),
                 minPrice = filters.minPrice,
                 maxPrice = filters.maxPrice,
                 brands = filters.brands.takeIf { it.isNotEmpty() }?.toList(),
-                unitType = unitType,
+                unitType = "LENS",
                 cameraTypes = filters.cameraTypes.takeIf { it.isNotEmpty() }?.toList(),
                 mounts = filters.mounts.takeIf { it.isNotEmpty() }?.toList(),
                 sensorFormats = filters.sensorFormats.takeIf { it.isNotEmpty() }?.toList(),
-                bodyModelId = if (unitType == "BODY") modelId else null,
-                lensModelId = if (unitType == "LENS") modelId else null,
+                bodyModelId = modelId,
+                lensModelId = null,
                 page = 0,
                 size = 20
             )
 
             Log.d("ResultsViewModel", "[RelatedProducts] API 요청 파라미터:")
             Log.d("ResultsViewModel", "  - mode: ${request.mode}")
-            Log.d("ResultsViewModel", "  - conditions: ${request.conditions}")
-            Log.d("ResultsViewModel", "  - brands: ${request.brands}")
-            Log.d("ResultsViewModel", "  - cameraTypes: ${request.cameraTypes}")
-            Log.d("ResultsViewModel", "  - mounts: ${request.mounts}")
-            Log.d("ResultsViewModel", "  - sensorFormats: ${request.sensorFormats}")
+            Log.d("ResultsViewModel", "  - conditions: ${request.conditions} → API 전송값: ${request.conditions?.firstOrNull()}")
+            Log.d("ResultsViewModel", "  - brands: ${request.brands} → API 전송값: ${request.brands?.firstOrNull()}")
+            Log.d("ResultsViewModel", "  - cameraTypes: ${request.cameraTypes} → API 전송값: ${request.cameraTypes?.firstOrNull()}")
+            Log.d("ResultsViewModel", "  - mounts: ${request.mounts} → API 전송값: ${request.mounts?.firstOrNull()}")
+            Log.d("ResultsViewModel", "  - sensorFormats: ${request.sensorFormats} → API 전송값: ${request.sensorFormats?.firstOrNull()}")
             Log.d("ResultsViewModel", "  - bodyModelId: ${request.bodyModelId}")
             Log.d("ResultsViewModel", "  - lensModelId: ${request.lensModelId}")
             Log.d("ResultsViewModel", "  - page: ${request.page}")
             Log.d("ResultsViewModel", "  - size: ${request.size}")
             Log.d("ResultsViewModel", "  - minPrice: ${request.minPrice}")
             Log.d("ResultsViewModel", "  - maxPrice: ${request.maxPrice}")
+            Log.d("ResultsViewModel", "  - unitType: ${request.unitType}")
 
             Log.d("ResultsViewModel", "[RelatedProducts] API 호출 시작...")
+            Log.d("ResultsViewModel", "  실제 URL: GET /api/listings/search?mode=${request.mode}&unitType=${request.unitType}&bodyModelId=${request.bodyModelId}&page=${request.page}&size=${request.size}")
 
             val result = repository.getRelatedProducts(request)
             result

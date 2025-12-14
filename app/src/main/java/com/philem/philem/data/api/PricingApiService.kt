@@ -70,10 +70,23 @@ interface PricingApiService {
 
     /**
      * 7. 연관 제품 추천 API
-     * POST /listings/related
+     * GET /api/listings/search
      */
-    @POST("/listings/related")
+    @GET("/api/listings/search")
     suspend fun getRelatedProducts(
-        @Body request: RelatedProductsRequest
+        @Query("mode") mode: String,
+        @Query("condition") condition: String? = null,
+        @Query("minPrice") minPrice: Long? = null,
+        @Query("maxPrice") maxPrice: Long? = null,
+        @Query("brand") brand: String? = null,
+        @Query("unitType") unitType: String,
+        @Query("cameraType") cameraType: String? = null,
+        @Query("mount") mount: String? = null,
+        @Query("sensorFormat") sensorFormat: String? = null,
+        @Query("bodyModelId") bodyModelId: Long? = null,
+        @Query("lensModelId") lensModelId: Long? = null,
+        @Query("presetLensBrand") presetLensBrand: String? = null,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20
     ): RelatedProductsResponse
 }

@@ -96,7 +96,23 @@ class PricingRepository {
      */
     suspend fun getRelatedProducts(request: RelatedProductsRequest): Result<RelatedProductsResponse> = withContext(Dispatchers.IO) {
         try {
-            val response = api.getRelatedProducts(request)
+            // API는 단일 값만 받으므로 List의 첫 번째 값만 전송
+            val response = api.getRelatedProducts(
+                mode = request.mode,
+                condition = request.conditions?.firstOrNull(),
+                minPrice = request.minPrice,
+                maxPrice = request.maxPrice,
+                brand = request.brands?.firstOrNull(),
+                unitType = request.unitType,
+                cameraType = request.cameraTypes?.firstOrNull(),
+                mount = request.mounts?.firstOrNull(),
+                sensorFormat = request.sensorFormats?.firstOrNull(),
+                bodyModelId = request.bodyModelId,
+                lensModelId = request.lensModelId,
+                presetLensBrand = request.presetLensBrand,
+                page = request.page,
+                size = request.size
+            )
             Result.success(response)
         } catch (e: Exception) {
             Result.failure(e)

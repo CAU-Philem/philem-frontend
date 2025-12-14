@@ -139,5 +139,6 @@ data class RelatedProductItem(
     val condition: String,
     @SerializedName("updatedAt") val updatedAt: String,
     @SerializedName("postUrl") val postUrl: String,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String?,
     @SerializedName("salesCount") val salesCount: Int
 )
