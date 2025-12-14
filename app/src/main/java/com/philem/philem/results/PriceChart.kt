@@ -34,7 +34,17 @@ fun PriceChart(
     productSet: ProductSet,
     modifier: Modifier = Modifier
 ) {
-    var selectedComponent by remember { mutableStateOf("combined") }
+    // 번들이면 "combined", 단일 상품이면 해당 타입으로 초기화
+    val initialComponent = remember(productSet) {
+        when {
+            productSet.hasBody && productSet.hasLens -> "combined"  // 번들
+            productSet.hasBody -> "body"  // 바디만
+            productSet.hasLens -> "lens"  // 렌즈만
+            else -> "body"  // 기본값
+        }
+    }
+
+    var selectedComponent by remember(productSet) { mutableStateOf(initialComponent) }
     var touchedIndex by remember { mutableStateOf<Int?>(null) }
     var touchedGrade by remember { mutableStateOf<String?>(null) }
 
@@ -43,10 +53,23 @@ fun PriceChart(
 
     // 모든 등급의 데이터 준비
     val gradeDataMap = remember(snapshots, selectedComponent) {
+        android.util.Log.d("PriceChart", "===== gradeDataMap 생성 =====")
+        android.util.Log.d("PriceChart", "전체 스냅샷 수: ${snapshots.size}")
+        android.util.Log.d("PriceChart", "selectedComponent: $selectedComponent")
+
+        // 스냅샷의 componentType 분포 확인
+        val typeDistribution = snapshots.groupBy { it.componentType }
+        typeDistribution.forEach { (type, list) ->
+            android.util.Log.d("PriceChart", "  componentType='$type': ${list.size}건")
+        }
+
         listOf("A", "B", "C").associateWith { grade ->
             val filtered = snapshots
-                .filter { it.condition == grade && it.component_type == selectedComponent }
+                .filter { it.condition == grade && it.componentType == selectedComponent }
                 .sortedWith(compareBy({ it.sold_year }, { it.sold_month }))
+
+            android.util.Log.d("PriceChart", "  ${grade}급 ${selectedComponent}: ${filtered.size}건")
+
             interpolateMissingMonths(filtered)
         }
     }
@@ -60,6 +83,17 @@ fun PriceChart(
 
     val averagePrice = currentGradeData.map { it.avg_price }.average().toLong()
     val currentPrice = productSet.getPriceFor(selectedComponent)
+
+    // 디버그 로깅
+    android.util.Log.d("PriceChart", "===== 차트 렌더링 =====")
+    android.util.Log.d("PriceChart", "selectedComponent: $selectedComponent")
+    android.util.Log.d("PriceChart", "currentGrade: $currentSelectedGrade")
+    android.util.Log.d("PriceChart", "currentPrice: $currentPrice")
+    android.util.Log.d("PriceChart", "averagePrice: $averagePrice")
+    android.util.Log.d("PriceChart", "productSet.percentVsRef: ${productSet.percentVsRef}")
+    android.util.Log.d("PriceChart", "productSet.direction: ${productSet.direction}")
+    android.util.Log.d("PriceChart", "productSet.refAvgPrice: ${productSet.refAvgPrice}")
+    android.util.Log.d("PriceChart", "데이터 포인트 수: ${currentGradeData.size}")
 
     // 🆕 백엔드 API 응답 값 사용
     val discountPercent = kotlin.math.abs(productSet.percentVsRef.toInt())
@@ -158,94 +192,126 @@ fun PriceChart(
                     }
 
                     // 할인율 배지 (한 줄 표시)
-                    when (discountDirection) {
-                        "LOWER" -> {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFE8F5E9),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    Color(0xFF4CAF50).copy(alpha = 0.3f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    if (discountPercent > 0 || discountDirection != "SAME") {
+                        when (discountDirection) {
+                            "LOWER" -> {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFE8F5E9),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Color(0xFF4CAF50).copy(alpha = 0.3f)
+                                    )
                                 ) {
-                                    Text(
-                                        text = "↓",
-                                        fontSize = 22.sp,
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Bold
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "↓",
+                                            fontSize = 22.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${discountPercent}%",
+                                            fontSize = 20.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = "저렴",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            "HIGHER" -> {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFFFEBEE),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Color(0xFFE53935).copy(alpha = 0.3f)
                                     )
-                                    Text(
-                                        text = "${kotlin.math.abs(discountPercent)}%",
-                                        fontSize = 20.sp,
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "저렴",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "↑",
+                                            fontSize = 22.sp,
+                                            color = Color(0xFFE53935),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${discountPercent}%",
+                                            fontSize = 20.sp,
+                                            color = Color(0xFFE53935),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = "비쌈",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFFE53935),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {
+                                // SAME이지만 퍼센트가 0이 아닌 경우도 표시
+                                if (discountPercent > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFFF5F5F5)
+                                    ) {
+                                        Text(
+                                            text = "평균가 ±${discountPercent}%",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF757575),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFFF5F5F5)
+                                    ) {
+                                        Text(
+                                            text = "평균가",
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF757575),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
-                        "HIGHER" -> {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFFFEBEE),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    Color(0xFFE53935).copy(alpha = 0.3f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = "↑",
-                                        fontSize = 22.sp,
-                                        color = Color(0xFFE53935),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "${kotlin.math.abs(discountPercent)}%",
-                                        fontSize = 20.sp,
-                                        color = Color(0xFFE53935),
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "비쌈",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFFE53935),
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                        else -> {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFF5F5F5)
-                            ) {
-                                Text(
-                                    text = "평균가",
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF757575),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
+                    } else {
+                        // 할인율 정보가 없는 경우
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF5F5F5)
+                        ) {
+                            Text(
+                                text = "시세 분석중",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                fontSize = 14.sp,
+                                color = Color(0xFF757575),
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -254,8 +320,8 @@ fun PriceChart(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 바디/합본/렌즈 선택 버튼
-        if (productSet.hasLens) {
+        // 바디/합본/렌즈 선택 버튼 (번들 상품일 때만 표시)
+        if (productSet.hasBody && productSet.hasLens) {
             ComponentSelector(
                 selectedComponent = selectedComponent,
                 onComponentSelected = { selectedComponent = it }
@@ -469,7 +535,7 @@ private fun ChartHeader(
 
                         // 세트 가격의 시세 대비 비교
                         val averageSetPrice = interpolatedData
-                            .filter { it.component_type == "combined" }
+                            .filter { it.componentType == "combined" }
                             .map { it.avg_price }
                             .takeIf { it.isNotEmpty() }
                             ?.average()
@@ -657,7 +723,7 @@ private fun InteractivePriceChart(
         for (i in 0..yLabelCount) {
             val price = minPrice + (priceRange * i / yLabelCount)
             val y = priceToY(price)
-            val priceText = "${(price / 10000).toInt()}만"
+            val priceText = "${price.formatPrice()}원"
 
             drawContext.canvas.nativeCanvas.drawText(
                 priceText,
@@ -666,9 +732,8 @@ private fun InteractivePriceChart(
                 yAxisTextPaint
             )
 
-            // 격자선
             drawLine(
-                color = Color.Gray.copy(alpha = 0.2f),
+                color = Color.Gray.copy(alpha = 0.15f),
                 start = Offset(paddingLeft, y),
                 end = Offset(width - paddingRight, y),
                 strokeWidth = 1f
@@ -832,31 +897,32 @@ private fun MultiGradeChart(
         val paddingTop = 60f
         val paddingBottom = 50f
 
-        // 모든 등급의 min/max 가격 계산
+        // 1. 모든 등급의 데이터 취합
         val allPrices = gradeDataMap.values.flatten()
         if (allPrices.isEmpty()) return@Canvas
 
-        // 상품 등급의 평균가 계산
-        val productGradeData = gradeDataMap[productGrade] ?: emptyList()
-        val averagePrice = if (productGradeData.isNotEmpty()) {
-            productGradeData.map { it.avg_price }.average().toLong()
-        } else {
-            allPrices.map { it.avg_price }.average().toLong()
-        }
+        // 2. [수정] 스냅샷의 min/max가 아닌, 실제 그리는 선(avg_price) 기준으로 범위 산정
+        val dataMinPrice = allPrices.minOf { it.avg_price }
+        val dataMaxPrice = allPrices.maxOf { it.avg_price }
 
-        val dataMinPrice = allPrices.minOf { it.min_price }
-        val dataMaxPrice = allPrices.maxOf { it.max_price }
+        // 3. 데이터 범위 계산 (최소 10,000원은 확보)
+        val dataRange = (dataMaxPrice - dataMinPrice).coerceAtLeast(10_000L)
 
-        // Y축 척도를 평균가 기준으로 조정 (평균가가 중간에 오도록)
-        val priceRangeFromAvg = kotlin.math.max(
-            kotlin.math.abs(dataMaxPrice - averagePrice),
-            kotlin.math.abs(averagePrice - dataMinPrice)
-        )
-        val minPrice = (averagePrice - priceRangeFromAvg * 1.2).toLong().coerceAtLeast(0)
-        val maxPrice = (averagePrice + priceRangeFromAvg * 1.2).toLong()
+        // 4. [수정] 상하단 10% 여백을 위한 패딩 계산
+        // 전체 높이의 80%가 데이터 영역이어야 하므로,
+        // AxisRange = DataRange / 0.8 = DataRange * 1.25
+        // Padding = AxisRange * 0.1 = DataRange * 0.125
+        val padding = (dataRange * 0.125).toLong()
+
+        // 5. Y축의 최소/최대값 결정 (0원 밑으로 내려가지 않게 방어)
+        val minPrice = (dataMinPrice - padding).coerceAtLeast(0L)
+        val maxPrice = dataMaxPrice + padding
         val priceRange = (maxPrice - minPrice).coerceAtLeast(1)
 
+        android.util.Log.d("MultiGradeChart", "Y축 보정: dataMin=$dataMinPrice, dataMax=$dataMaxPrice, padding=$padding, axisMin=$minPrice, axisMax=$maxPrice")
+
         fun priceToY(price: Long): Float {
+            // 가격이 높을수록 Y좌표는 작아야 함(위쪽)
             return height - paddingBottom - ((price - minPrice).toFloat() / priceRange * (height - paddingTop - paddingBottom))
         }
 
@@ -880,12 +946,12 @@ private fun MultiGradeChart(
             textAlign = android.graphics.Paint.Align.RIGHT
         }
 
-        // Y축 가격 레이블
+        // Y축 가격 레이블 (5단계)
         val yLabelCount = 5
         for (i in 0..yLabelCount) {
             val price = minPrice + (priceRange * i / yLabelCount)
             val y = priceToY(price)
-            val priceText = "${(price / 10000).toInt()}만"
+            val priceText = "${price.formatPrice()}원"
 
             drawContext.canvas.nativeCanvas.drawText(
                 priceText,
@@ -894,7 +960,7 @@ private fun MultiGradeChart(
                 yAxisTextPaint
             )
 
-            // 격자선
+            // 가로 격자선
             drawLine(
                 color = Color.Gray.copy(alpha = 0.15f),
                 start = Offset(paddingLeft, y),
@@ -923,7 +989,7 @@ private fun MultiGradeChart(
             }
         }
 
-        // 각 등급별 라인 그리기 (상품 등급 색상만 사용)
+        // 각 등급별 라인 그리기
         listOf("A", "B", "C").forEach { grade ->
             val data = gradeDataMap[grade] ?: return@forEach
             if (data.isEmpty()) return@forEach
@@ -940,7 +1006,11 @@ private fun MultiGradeChart(
                 val x = paddingLeft + (width - paddingLeft - paddingRight) * index / (data.size - 1).coerceAtLeast(1)
                 val y = priceToY(snapshot.avg_price)
 
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                if (index == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
             }
 
             // 그라데이션 (상품 등급만)
@@ -961,32 +1031,6 @@ private fun MultiGradeChart(
             }
 
             drawPath(path = path, color = lineColor, style = Stroke(width = lineWidth))
-        }
-
-        // 평균가 기준선 (상품 등급 기준)
-        val avgY = priceToY(averagePrice)
-        drawLine(
-            color = Color(0xFFE53935).copy(alpha = 0.7f),
-            start = Offset(paddingLeft, avgY),
-            end = Offset(width - paddingRight, avgY),
-            strokeWidth = 2f,
-            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 5f))
-        )
-
-        // 평균가 레이블
-        drawContext.canvas.nativeCanvas.apply {
-            val avgPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.rgb(229, 57, 53)
-                textSize = 22f
-                isAntiAlias = true
-                textAlign = android.graphics.Paint.Align.RIGHT
-            }
-            drawText(
-                "평균 ${(averagePrice / 10000).toInt()}만원",
-                width - paddingRight - 10f,
-                avgY - 8f,
-                avgPaint
-            )
         }
 
         // 내 상품 가격 라인 (초록색)
@@ -1024,7 +1068,6 @@ private fun MultiGradeChart(
 
             val legendX = width - paddingRight + 10f
 
-            // 라인
             drawLine(
                 color = if (isProductGrade) gradeColor else Color.Gray.copy(alpha = alpha),
                 start = Offset(legendX, legendY),
@@ -1032,7 +1075,6 @@ private fun MultiGradeChart(
                 strokeWidth = 3f
             )
 
-            // 텍스트
             drawContext.canvas.nativeCanvas.drawText(
                 "${grade}급",
                 legendX + 40f,
@@ -1054,17 +1096,14 @@ private fun MultiGradeChart(
                     textAlign = android.graphics.Paint.Align.LEFT
                 }
             )
-
             legendY += 35f
         }
 
-        // 터치 인터랙션
+        // 터치 인터랙션 처리
         touchedX?.let { x ->
-            // 터치한 위치에서 가장 가까운 인덱스 찾기
             var closestIndex: Int? = null
             var closestDistance = Float.MAX_VALUE
 
-            // 대표 데이터로 인덱스 찾기
             val representativeData = gradeDataMap[productGrade] ?: gradeDataMap.values.firstOrNull() ?: emptyList()
 
             xToIndex(x, representativeData.size)?.let { index ->
@@ -1091,29 +1130,22 @@ private fun MultiGradeChart(
                     pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f))
                 )
 
-                // 상품 등급 교차점만 표시
+                // 상품 등급 교차점
                 gradeDataMap[productGrade]?.getOrNull(index)?.let { snapshot ->
                     val pointY = priceToY(snapshot.avg_price)
-
-                    drawCircle(
-                        color = productGradeColor,
-                        radius = 10f,
-                        center = Offset(touchX, pointY)
-                    )
-                    drawCircle(
-                        color = Color.White,
-                        radius = 5f,
-                        center = Offset(touchX, pointY)
-                    )
+                    drawCircle(color = productGradeColor, radius = 10f, center = Offset(touchX, pointY))
+                    drawCircle(color = Color.White, radius = 5f, center = Offset(touchX, pointY))
                 }
 
-                // 모든 등급의 가격을 담은 통합 박스 (주식 차트 스타일)
+                // 정보 박스 그리기
+                // ... (박스 그리기 코드는 기존과 동일하므로 생략하거나 기존 코드 유지)
+                // 아래 부분은 기존 코드의 박스 그리는 로직 그대로 두시면 됩니다.
+
                 val boxPaint = android.graphics.Paint().apply {
                     color = android.graphics.Color.WHITE
                     isAntiAlias = true
                     setShadowLayer(8f, 0f, 4f, android.graphics.Color.argb(60, 0, 0, 0))
                 }
-
                 val borderPaint = android.graphics.Paint().apply {
                     color = android.graphics.Color.argb(255, 200, 200, 200)
                     isAntiAlias = true
@@ -1121,7 +1153,6 @@ private fun MultiGradeChart(
                     strokeWidth = 2f
                 }
 
-                // 박스 내용 준비
                 val gradeInfoList = mutableListOf<Triple<String, Long, Boolean>>()
                 listOf("A", "B", "C").forEach { grade ->
                     gradeDataMap[grade]?.getOrNull(index)?.let { snapshot ->
@@ -1130,120 +1161,59 @@ private fun MultiGradeChart(
                 }
 
                 if (gradeInfoList.isNotEmpty()) {
-                    // 텍스트 페인트
                     val labelPaint = android.graphics.Paint().apply {
-                        textSize = 33f  // 22f * 1.5
+                        textSize = 33f
                         isAntiAlias = true
                         textAlign = android.graphics.Paint.Align.LEFT
                     }
-
-                    // 박스 크기 계산
-                    val lineHeight = 52f  // 35f * 1.5
-                    val boxPadding = 24f  // 16f * 1.5
-
+                    val lineHeight = 52f
+                    val boxPadding = 24f
                     var maxWidth = 0f
-                    gradeInfoList.forEach { (grade, price, isProductGrade) ->
+                    gradeInfoList.forEach { (grade, price, _) ->
                         val text = "${grade}급 ${price.formatPrice()}원"
                         val bounds = android.graphics.Rect()
                         labelPaint.getTextBounds(text, 0, text.length, bounds)
                         maxWidth = kotlin.math.max(maxWidth, bounds.width().toFloat())
                     }
-
-                    val boxWidth = maxWidth + boxPadding * 2 + 30f  // 20f -> 30f
+                    val boxWidth = maxWidth + boxPadding * 2 + 30f
                     val boxHeight = gradeInfoList.size * lineHeight + boxPadding * 2
-
-                    // 박스 위치 계산 (오른쪽 우선, 넘치면 왼쪽)
                     val boxOffsetX = 25f
-                    val boxX = if (touchX + boxOffsetX + boxWidth < width - paddingRight) {
-                        touchX + boxOffsetX
-                    } else {
-                        touchX - boxOffsetX - boxWidth
-                    }
-
-                    // 박스를 수직선 중간에 배치
+                    val boxX = if (touchX + boxOffsetX + boxWidth < width - paddingRight) touchX + boxOffsetX else touchX - boxOffsetX - boxWidth
                     val centerY = (paddingTop + height - paddingBottom) / 2
                     val boxY = centerY - boxHeight / 2
 
-                    // 박스 배경 그리기
-                    drawContext.canvas.nativeCanvas.drawRoundRect(
-                        boxX,
-                        boxY,
-                        boxX + boxWidth,
-                        boxY + boxHeight,
-                        12f,
-                        12f,
-                        boxPaint
-                    )
+                    drawContext.canvas.nativeCanvas.drawRoundRect(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 12f, 12f, boxPaint)
+                    drawContext.canvas.nativeCanvas.drawRoundRect(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 12f, 12f, borderPaint)
 
-                    // 박스 테두리
-                    drawContext.canvas.nativeCanvas.drawRoundRect(
-                        boxX,
-                        boxY,
-                        boxX + boxWidth,
-                        boxY + boxHeight,
-                        12f,
-                        12f,
-                        borderPaint
-                    )
-
-                    // 각 등급 정보 그리기
-                    var currentY = boxY + boxPadding + 30f  // 20f -> 30f
+                    var currentY = boxY + boxPadding + 30f
                     gradeInfoList.forEach { (grade, price, isProductGrade) ->
                         val gradeColorForDisplay = gradeColors[grade] ?: Color.Gray
-
-                        // 등급 색상 인디케이터 (작은 원)
                         val indicatorPaint = android.graphics.Paint().apply {
-                            color = android.graphics.Color.argb(
-                                255,
-                                android.graphics.Color.red(gradeColorForDisplay.hashCode()),
-                                android.graphics.Color.green(gradeColorForDisplay.hashCode()),
-                                android.graphics.Color.blue(gradeColorForDisplay.hashCode())
-                            )
+                            color = android.graphics.Color.argb(255, android.graphics.Color.red(gradeColorForDisplay.hashCode()), android.graphics.Color.green(gradeColorForDisplay.hashCode()), android.graphics.Color.blue(gradeColorForDisplay.hashCode()))
                             isAntiAlias = true
                         }
-
-                        drawContext.canvas.nativeCanvas.drawCircle(
-                            boxX + boxPadding + 9f,  // 6f -> 9f
-                            currentY - 9f,  // 6f -> 9f
-                            9f,  // 6f -> 9f (인디케이터 원 크기)
-                            indicatorPaint
-                        )
-
-                        // 텍스트
+                        drawContext.canvas.nativeCanvas.drawCircle(boxX + boxPadding + 9f, currentY - 9f, 9f, indicatorPaint)
                         val textPaint = android.graphics.Paint().apply {
                             color = android.graphics.Color.BLACK
-                            textSize = if (isProductGrade) 36f else 33f  // 24f/22f * 1.5
+                            textSize = if (isProductGrade) 36f else 33f
                             isAntiAlias = true
                             textAlign = android.graphics.Paint.Align.LEFT
                             isFakeBoldText = isProductGrade
                         }
-
-                        val text = "${grade}급 ${price.formatPrice()}원"
-                        drawContext.canvas.nativeCanvas.drawText(
-                            text,
-                            boxX + boxPadding + 30f,  // 20f -> 30f
-                            currentY,
-                            textPaint
-                        )
-
+                        drawContext.canvas.nativeCanvas.drawText("${grade}급 ${price.formatPrice()}원", boxX + boxPadding + 30f, currentY, textPaint)
                         currentY += lineHeight
                     }
                 }
 
-                // 상품 등급의 할인율 표시 (맨 위에)
-                // 드래그 시: 해당 월 시세 대비 계산 - 블록 화살표로 표현 (가로 배치)
+                // 할인율 표시 박스 (맨 위)
                 gradeDataMap[productGrade]?.getOrNull(index)?.let { snapshot ->
                     val monthlyPrice = snapshot.avg_price
                     val discountPercent = ((monthlyPrice - productPrice) * 100.0 / monthlyPrice).roundToInt()
-
                     if (discountPercent != 0) {
                         val isLower = discountPercent > 0
                         val percentValue = kotlin.math.abs(discountPercent)
-
-                        // 화살표 + 퍼센트를 가로로 배치
                         val arrowIcon = if (isLower) "▼" else "▲"
                         val displayText = "$arrowIcon $percentValue%"
-
                         val textPaint = android.graphics.Paint().apply {
                             color = android.graphics.Color.WHITE
                             textSize = 42f
@@ -1251,45 +1221,19 @@ private fun MultiGradeChart(
                             textAlign = android.graphics.Paint.Align.CENTER
                             isFakeBoldText = true
                         }
-
-                        // 배경 박스 크기 계산
                         val textBounds = android.graphics.Rect()
                         textPaint.getTextBounds(displayText, 0, displayText.length, textBounds)
-
                         val boxPadding = 18f
                         val boxWidth = textBounds.width() + boxPadding * 2
                         val boxHeight = textBounds.height() + boxPadding * 2
-
                         val discountBgPaint = android.graphics.Paint().apply {
-                            color = if (isLower) {
-                                android.graphics.Color.rgb(129, 199, 132)  // 연한 초록 (#81C784)
-                            } else {
-                                android.graphics.Color.rgb(239, 154, 154)  // 연한 빨강 (#EF9A9A)
-                            }
+                            color = if (isLower) android.graphics.Color.rgb(129, 199, 132) else android.graphics.Color.rgb(239, 154, 154)
                             isAntiAlias = true
                             setShadowLayer(6f, 0f, 3f, android.graphics.Color.argb(60, 0, 0, 0))
                         }
-
                         val discountY = paddingTop + 10f
-
-                        // 둥근 배경 박스
-                        drawContext.canvas.nativeCanvas.drawRoundRect(
-                            touchX - boxWidth / 2,
-                            discountY,
-                            touchX + boxWidth / 2,
-                            discountY + boxHeight,
-                            12f,
-                            12f,
-                            discountBgPaint
-                        )
-
-                        // 화살표 + 퍼센트 텍스트 (한 줄)
-                        drawContext.canvas.nativeCanvas.drawText(
-                            displayText,
-                            touchX,
-                            discountY + boxHeight / 2 + textBounds.height() / 2,
-                            textPaint
-                        )
+                        drawContext.canvas.nativeCanvas.drawRoundRect(touchX - boxWidth / 2, discountY, touchX + boxWidth / 2, discountY + boxHeight, 12f, 12f, discountBgPaint)
+                        drawContext.canvas.nativeCanvas.drawText(displayText, touchX, discountY + boxHeight / 2 + textBounds.height() / 2, textPaint)
                     }
                 }
             }
@@ -1333,7 +1277,7 @@ private fun interpolateMissingMonths(snapshots: List<ModelPriceSnapshot>): List<
                         min_price = interpolatedPrice,
                         avg_price = interpolatedPrice,
                         sample_count = 0,
-                        component_type = current.component_type
+                        _componentType = current.componentType
                     )
                 )
             }

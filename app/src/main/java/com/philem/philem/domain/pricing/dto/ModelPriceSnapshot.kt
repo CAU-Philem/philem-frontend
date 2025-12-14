@@ -1,5 +1,7 @@
 package com.philem.philem.domain.pricing.dto
 
+import com.google.gson.annotations.SerializedName
+
 data class ModelPriceSnapshot(
     val condition: String,
     val sold_year: Int,
@@ -8,8 +10,18 @@ data class ModelPriceSnapshot(
     val min_price: Long,
     val avg_price: Long,
     val sample_count: Int,
-    val component_type: String = "combined"
-)
+    @SerializedName("component_type") private val _componentType: String? = null
+) {
+    // API에서 component_type이 없으면 "body" 또는 "combined"로 추론
+    val componentType: String
+        get() = _componentType ?: "body"  // 기본값을 body로 설정 (단일 상품이 많으므로)
+}
+
+fun List<ModelPriceSnapshot>.forComponent(type: String): List<ModelPriceSnapshot> =
+    filter { it.componentType == type }
+
+fun List<ModelPriceSnapshot>.forGrade(grade: String): List<ModelPriceSnapshot> =
+    filter { it.condition == grade }
 
 data class ProductSet(
     val name: String,
@@ -34,5 +46,57 @@ data class ProductSet(
         "body" -> bodyPrice
         "lens" -> lensPrice
         else -> combinedPrice
+    }
+
+    companion object {
+        fun fromCompareResponse(
+            modelName: String,
+            condition: String,
+            response: CompareResponse,
+            componentSnapshots: List<ModelPriceSnapshot>
+        ): ProductSet {
+            return ProductSet(
+                name = modelName,
+                combinedPrice = response.inputPrice,
+                bodyPrice = response.inputPrice,
+                lensPrice = 0L,
+                grade = condition,
+                percentVsRef = response.percentVsRef,
+                direction = response.direction,
+                refAvgPrice = response.refAvgPrice,
+                refYear = response.refYear,
+                refMonth = response.refMonth,
+                diffPrice = response.diffPrice,
+                hasBody = true,
+                hasLens = false
+            )
+        }
+
+        fun fromBundleResponse(
+            name: String,
+            bundlePrice: Long,
+            response: BundleCompareResponse,
+            hasBody: Boolean,
+            hasLens: Boolean
+        ): ProductSet {
+            val bodyItem = response.items.find { it.refAvgPrice > 0 }
+            val lensItem = response.items.getOrNull(1)
+
+            return ProductSet(
+                name = name,
+                combinedPrice = bundlePrice,
+                bodyPrice = bodyItem?.refAvgPrice ?: 0L,
+                lensPrice = lensItem?.refAvgPrice ?: 0L,
+                grade = bodyItem?.condition ?: "B",
+                percentVsRef = response.percentVsRef,
+                direction = response.direction,
+                refAvgPrice = response.refPrice,
+                refYear = response.refYear,
+                refMonth = response.refMonth,
+                diffPrice = response.diffPrice,
+                hasBody = hasBody,
+                hasLens = hasLens
+            )
+        }
     }
 }

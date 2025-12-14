@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.philem.philem.R
 import com.philem.philem.data.model.ProductItem
+import com.philem.philem.domain.pricing.dto.ModelPriceSnapshot
 import com.philem.philem.ui.theme.PhilemTheme
 
 class ResultsActivity : ComponentActivity() {
@@ -43,32 +44,151 @@ class ResultsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        viewModel.loadPriceData(modelId = 1L)
+        val targetUrl = intent.getStringExtra("target_url") ?: ""
+
+        android.util.Log.d("ResultsActivity", "========== Activity 시작 ==========")
+        android.util.Log.d("ResultsActivity", "받은 URL: '$targetUrl'")
+
+        if (targetUrl.isNotBlank()) {
+            // URL이 있으면 분석 API를 먼저 호출
+            android.util.Log.d("ResultsActivity", "URL 분석 플로우 시작")
+            viewModel.analyzeAndLoadPriceData(targetUrl)
+        } else {
+            // URL이 없으면 기존 방식 (테스트용)
+            android.util.Log.d("ResultsActivity", "URL 없음 - 테스트 모드")
+            val modelId = intent.getLongExtra("model_id", 1L)
+            val modelName = intent.getStringExtra("model_name") ?: "Unknown Model"
+            viewModel.updateModelName(modelName)
+            viewModel.setTargetUrl(targetUrl)
+            viewModel.loadPriceData(modelId = modelId)
+        }
 
         setContent {
             val snapshots by viewModel.priceSnapshots.collectAsState()
-            val selectedGrade by viewModel.selectedGrade.collectAsState()
             val productSet by viewModel.productSet.collectAsState()
+            val isLoading by viewModel.isLoading.collectAsState()
+            val error by viewModel.error.collectAsState()
+            val analyzeResult by viewModel.analyzeResult.collectAsState()
+            val targetUrl by viewModel.targetUrl.collectAsState()
 
             PhilemTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp)
-                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
+                        when {
+                            isLoading -> {
+                                CircularProgressIndicator()
+                            }
 
-                        // 가격 차트
-                        productSet?.let { set ->
-                            PriceChart(
-                                snapshots = snapshots,
-                                productSet = set,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            productSet != null -> {
+                                // 정상: 그래프 표시
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    productSet?.let { set ->
+                                        PriceChart(
+                                            snapshots = snapshots,
+                                            productSet = set,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+
+                            else -> {
+                                // 데이터 없음: 디버그 정보 표시
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Text(
+                                        text = "시세 데이터를 불러오지 못했습니다.",
+                                        color = Color.Gray,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9C4))
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text("🔍 진단 정보", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            if (targetUrl.isNotBlank()) {
+                                                Text("입력 URL:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(targetUrl, fontSize = 11.sp)
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                            }
+
+                                            analyzeResult?.let { result ->
+                                                Text("✅ URL 분석 성공", fontSize = 12.sp, color = Color(0xFF4CAF50))
+                                                Text("번들 여부: ${if (result.isBundle) "번들" else "단일"}", fontSize = 12.sp)
+                                                if (result.items.isNotEmpty()) {
+                                                    result.items.forEachIndexed { index, item ->
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Text("상품 ${index + 1}:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                        Text("  모델: ${item.modelName}", fontSize = 11.sp)
+                                                        Text("  모델ID: ${item.modelId}", fontSize = 11.sp)
+                                                        Text("  역할: ${item.role}", fontSize = 11.sp)
+                                                        Text("  등급: ${item.condition}", fontSize = 11.sp)
+                                                        Text("  가격: ${item.price}원", fontSize = 11.sp)
+                                                    }
+                                                }
+                                            } ?: run {
+                                                Text("❌ URL 분석 실패", fontSize = 12.sp, color = Color.Red)
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Text("스냅샷 현황:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            if (snapshots.isEmpty()) {
+                                                Text("❌ 스냅샷 데이터 없음",
+                                                    fontSize = 12.sp,
+                                                    color = Color.Red,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            } else {
+                                                val grouped: Map<String, List<ModelPriceSnapshot>> = snapshots.groupBy { it.componentType }
+                                                grouped.forEach { (type: String, list: List<ModelPriceSnapshot>) ->
+                                                    Text("  $type: ${list.size}건", fontSize = 11.sp)
+                                                    val byGrade: Map<String, List<ModelPriceSnapshot>> = list.groupBy { it.condition }
+                                                    byGrade.forEach { (grade: String, items: List<ModelPriceSnapshot>) ->
+                                                        Text("    ${grade}급: ${items.size}건", fontSize = 10.sp, color = Color.Gray)
+                                                    }
+                                                }
+                                            }
+
+                                            if (error != null) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text("에러:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(error ?: "", fontSize = 11.sp, color = Color.Red)
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("💡 로그캣에서 'ResultsViewModel' 태그로 상세 로그를 확인하세요",
+                                                fontSize = 10.sp,
+                                                color = Color.Gray,
+                                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -53,14 +53,14 @@ fun SearchScreen(modifier: Modifier = Modifier) {
             recentUrls = (listOf(urlInput) + recentUrls).distinct().take(3)
 
             val intent = Intent(context, ResultsActivity::class.java).apply {
-                putExtra("url", urlInput)
+                putExtra("target_url", urlInput)  // ResultsActivity에서 받는 키와 일치
             }
             context.startActivity(intent)
         }
     }
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
