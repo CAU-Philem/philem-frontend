@@ -24,7 +24,7 @@ class PricingRepository {
     /**
      * 시세 스냅샷 조회
      */
-    suspend fun getSnapshots(modelId: Long, months: Int = 36): Result<List<ModelPriceSnapshot>> = withContext(Dispatchers.IO) {
+    suspend fun getSnapshots(modelId: Long, months: Int = 24): Result<List<ModelPriceSnapshot>> = withContext(Dispatchers.IO) {
         try {
             val response = api.getSnapshots(modelId, months)
             Result.success(response)
@@ -75,4 +75,3 @@ class PricingRepository {
         }
     }
 }
-

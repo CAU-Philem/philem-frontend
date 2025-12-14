@@ -210,7 +210,7 @@ data class ProductSet(
 
 **Parameters:**
 - `modelId` (path) - 모델 ID
-- `months` (query, optional) - 조회 개월 수 (기본값: 36)
+- `months` (query, optional) - 조회 개월 수 (기본값: 24)
 
 **Response:**
 ```json
@@ -574,7 +574,7 @@ API 연동 실패 시 자동으로 Mock 데이터를 사용하여 앱이 중단�
 ```kotlin
 // ResultsViewModel.kt 내부
 try {
-    val snapshotsResult = repository.getSnapshots(modelId, months = 36)
+    val snapshotsResult = repository.getSnapshots(modelId, months = 24)
     snapshotsResult.onSuccess { snapshots ->
         _priceSnapshots.value = snapshots
     }.onFailure { e ->

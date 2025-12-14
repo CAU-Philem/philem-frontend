@@ -21,7 +21,7 @@ interface PricingApiService {
     @GET("/models/{modelId}/snapshots")
     suspend fun getSnapshots(
         @Path("modelId") modelId: Long,
-        @Query("months") months: Int = 36
+        @Query("months") months: Int = 24
     ): List<ModelPriceSnapshot>
 
     /**
@@ -56,4 +56,3 @@ interface PricingApiService {
         @Query("limit") limit: Int = 120
     ): RecommendationsResponse
 }
-
