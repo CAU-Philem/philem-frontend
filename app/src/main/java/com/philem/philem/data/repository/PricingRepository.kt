@@ -58,6 +58,7 @@ class PricingRepository {
             Result.failure(e)
         }
     }
+    /**test**/
 
     /**
      * 동일 상품 매물 추천
