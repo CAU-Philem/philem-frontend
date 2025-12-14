@@ -194,11 +194,15 @@ class ResultsViewModel : ViewModel() {
     }
 
     fun updateUserRegion(regionId: Long, regionName: String) {
+        Log.d("ResultsViewModel", "[UpdateRegion] regionId=$regionId name='$regionName' current=${_userRegionId.value}")
         val changed = regionId != _userRegionId.value
         _userRegionId.value = regionId
         _userRegionName.value = regionName
         if (changed) {
+            Log.d("ResultsViewModel", "[UpdateRegion] Region changed, retrying recommendations")
             retryRecommendations()
+        } else {
+            Log.d("ResultsViewModel", "[UpdateRegion] Region not changed, skipping retry")
         }
     }
 
@@ -208,6 +212,7 @@ class ResultsViewModel : ViewModel() {
 
     fun retryRecommendations() {
         val modelId = lastRecommendationModelId ?: return
+        Log.d("ResultsViewModel", "[RetryRecommendations] modelId=$modelId grade=$lastRecommendationPreferredGrade")
         fetchRecommendationsForModel(modelId, lastRecommendationPreferredGrade)
     }
 
@@ -241,6 +246,7 @@ class ResultsViewModel : ViewModel() {
     }
 
     fun selectRegion(region: RegionSearchResult) {
+        Log.d("ResultsViewModel", "[SelectRegion] selected id=${region.id} name='${region.name}'")
         updateUserRegion(region.id, region.name)
         _regionSearchQuery.value = region.name
         _regionSearchResults.value = emptyList()
