@@ -83,11 +83,14 @@ data class ListingSummary(
     @SerializedName("listing_id") val listingId: String,
     @SerializedName("model_id") val modelId: Long,
     @SerializedName("region_id") val regionId: Long,
-    val price: Long?, // null이 들어올 수 있으므로 Nullable로 변경 권장
-    val condition: String,
+    @SerializedName("region_name") val regionName: String?,
+    @SerializedName("price") val price: Long?,
+    @SerializedName("is_bundle") val isBundle: Boolean?,
+    @SerializedName("condition") val condition: String,
     @SerializedName("post_url") val postUrl: String,
     @SerializedName("thumbnail_url") val thumbnailUrl: String?,
-    @SerializedName("updated_at") val updatedAt: String
+    @SerializedName("boosted_at") val boostedAt: String?,
+    @SerializedName("updated_at") val updatedAt: String? = null
 )
 
 data class RegionSearchResult(

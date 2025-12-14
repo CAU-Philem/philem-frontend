@@ -92,6 +92,7 @@ class ResultsActivity : ComponentActivity() {
             val regionSearchResults by viewModel.regionSearchResults.collectAsState()
             val regionSearchLoading by viewModel.regionSearchLoading.collectAsState()
             val regionSearchError by viewModel.regionSearchError.collectAsState()
+            val selectedItemType by viewModel.selectedItemType.collectAsState()
             var showRegionSearch by remember { mutableStateOf(false) }
 
 
@@ -139,7 +140,9 @@ class ResultsActivity : ComponentActivity() {
                                             onRegionClick = {
                                                 viewModel.beginRegionSearch()
                                                 showRegionSearch = true
-                                            }
+                                            },
+                                            selectedItemType = selectedItemType,
+                                            onToggleItemType = viewModel::toggleItemType
                                         )
                                      }
                                  }
@@ -509,7 +512,9 @@ private fun RecommendationSection(
     isLoading: Boolean,
     error: String?,
     onRetry: () -> Unit,
-    onRegionClick: () -> Unit
+    onRegionClick: () -> Unit,
+    selectedItemType: String,
+    onToggleItemType: () -> Unit
 ) {
     val gradeOptions = listOf("A", "B", "C")
     val selectedList = recommendations[selectedGrade].orEmpty()
@@ -523,7 +528,7 @@ private fun RecommendationSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${regionName}에서 ${productName} 확인하기",
+                    text = "${regionName}근처에서 ${productName} 확인하기",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
@@ -544,12 +549,42 @@ private fun RecommendationSection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            gradeOptions.forEach { grade ->
-                FilterChip(
-                    selected = selectedGrade == grade,
-                    onClick = { onGradeSelected(grade) },
-                    label = { Text("${grade}급") }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                gradeOptions.forEach { grade ->
+                    FilterChip(
+                        selected = selectedGrade == grade,
+                        onClick = { onGradeSelected(grade) },
+                        label = { Text("${grade}급") }
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = onToggleItemType,
+                modifier = Modifier.height(32.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = Color(0xFF1E88E5)
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = Color(0xFF1E88E5)
+                )
+            ) {
+                Text(
+                    text = when (selectedItemType) {
+                        "SINGLE" -> "단품"
+                        "BUNDLE" -> "번들"
+                        else -> "전체"
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -647,11 +682,39 @@ private fun RecommendationCard(item: ListingSummary) {
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = "업데이트 ${item.updatedAt.formatAsDayTime()}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF757575)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = item.updatedAt?.formatAsDate() ?: item.boostedAt?.formatAsDate() ?: "정보 없음",
+                        fontSize = 11.sp,
+                        color = Color(0xFF757575),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (!item.regionName.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(min = 60.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFBDBDBD))
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = item.regionName,
+                                fontSize = 10.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Visible,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -761,14 +824,14 @@ private fun RegionSearchDialog(
 
 private fun Long.formatAsWon(): String = String.format(java.util.Locale.getDefault(), "%,d", this)
 
-private fun String.formatAsDayTime(): String = runCatching {
+private fun String.formatAsDate(): String = runCatching {
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
         val dateTime = OffsetDateTime.parse(this)
-        dateTime.format(DateTimeFormatter.ofPattern("MM.dd HH:mm"))
+        dateTime.format(DateTimeFormatter.ofPattern("MM.dd"))
     } else {
         // Fallback for API < 26
         val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
-        val outputFormat = java.text.SimpleDateFormat("MM.dd HH:mm", java.util.Locale.getDefault())
+        val outputFormat = java.text.SimpleDateFormat("MM.dd", java.util.Locale.getDefault())
         val date = inputFormat.parse(this.substringBefore('+').substringBefore('Z'))
         date?.let { outputFormat.format(it) } ?: this
     }

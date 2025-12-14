@@ -91,6 +91,10 @@ class ResultsViewModel : ViewModel() {
 
     private var lastRecommendationModelId: Long? = null
     private var lastRecommendationPreferredGrade: String = "B"
+    private var lastRecommendationIsBundle: Boolean = false
+
+    private val _selectedItemType = MutableStateFlow("SINGLE")
+    val selectedItemType: StateFlow<String> = _selectedItemType.asStateFlow()
 
     /**
      * 가격 데이터 로드 (실제 API 사용)
@@ -380,6 +384,7 @@ class ResultsViewModel : ViewModel() {
                                     hasLens = item.role == "LENS"
                                 )
                             }
+                            lastRecommendationIsBundle = false
                             fetchRecommendationsForModel(item.modelId, item.condition)
                         }
                         .onFailure { throwable ->
@@ -393,6 +398,7 @@ class ResultsViewModel : ViewModel() {
                                 hasBody = item.role == "BODY",
                                 hasLens = item.role == "LENS"
                             )
+                            lastRecommendationIsBundle = false
                             fetchRecommendationsForModel(item.modelId, item.condition)
                         }
                 } else {
@@ -493,6 +499,7 @@ class ResultsViewModel : ViewModel() {
                     hasBody = true,
                     hasLens = true
                 )
+                lastRecommendationIsBundle = true
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
             .onFailure { throwable ->
@@ -507,6 +514,7 @@ class ResultsViewModel : ViewModel() {
                     hasBody = true,
                     hasLens = true
                 )
+                lastRecommendationIsBundle = true
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
 
@@ -550,6 +558,16 @@ class ResultsViewModel : ViewModel() {
         }.sortedWith(compareBy({ it.sold_year }, { it.sold_month }))
     }
 
+    fun toggleItemType() {
+        _selectedItemType.value = when (_selectedItemType.value) {
+            "SINGLE" -> "BUNDLE"
+            "BUNDLE" -> "SINGLE"
+            else -> "SINGLE"
+        }
+        Log.d("ResultsViewModel", "[ToggleItemType] switched to ${_selectedItemType.value}")
+        retryRecommendations()
+    }
+
     private fun fetchRecommendationsForModel(modelId: Long, preferredGrade: String) {
         lastRecommendationModelId = modelId
         lastRecommendationPreferredGrade = preferredGrade
@@ -559,8 +577,16 @@ class ResultsViewModel : ViewModel() {
             _recommendationsError.value = null
 
             val regionId = _userRegionId.value
-            Log.d("ResultsViewModel", "[Recommendations] requesting model=$modelId region=$regionId grade=$preferredGrade")
-            val result = repository.getRecommendations(modelId, regionId)
+            val itemType = _selectedItemType.value
+            Log.d("ResultsViewModel", "[Recommendations] requesting model=$modelId region=$regionId grade=$preferredGrade itemType=$itemType")
+            val result = repository.getRecommendations(
+                modelId = modelId,
+                userRegionId = regionId,
+                radiusKm = 10,
+                limit = 20,
+                condition = null,
+                itemType = itemType
+            )
             result
                 .onSuccess { response ->
                      val byCondition = response.byCondition ?: emptyMap()

@@ -53,7 +53,9 @@ interface PricingApiService {
         @Query("modelId") modelId: Long,
         @Query("userRegionId") userRegionId: Long,
         @Query("radiusKm") radiusKm: Int = 10,
-        @Query("limit") limit: Int = 10
+        @Query("limit") limit: Int = 10,
+        @Query("condition") condition: String? = null,
+        @Query("itemType") itemType: String = "ALL"
     ): RecommendationsResponse
 
     /**

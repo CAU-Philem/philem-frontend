@@ -727,7 +727,7 @@ private fun InteractivePriceChart(
         for (i in 0..yLabelCount) {
             val price = minPrice + (priceRange * i / yLabelCount)
             val y = priceToY(price)
-            val priceText = "${price.formatPrice()}원"
+            val priceText = price.formatPriceAsManwon()
 
             drawContext.canvas.nativeCanvas.drawText(
                 priceText,
@@ -955,7 +955,7 @@ private fun MultiGradeChart(
         for (i in 0..yLabelCount) {
             val price = minPrice + (priceRange * i / yLabelCount)
             val y = priceToY(price)
-            val priceText = "${price.formatPrice()}원"
+            val priceText = price.formatPriceAsManwon()
 
             drawContext.canvas.nativeCanvas.drawText(
                 priceText,
@@ -1300,3 +1300,13 @@ private fun componentName(type: String): String = when (type) {
 }
 
 private fun Long.formatPrice(): String = "%,d".format(this)
+
+/**
+ * 만원 단위로 반올림하여 표시
+ */
+private fun Long.formatPriceAsManwon(): String {
+    val manwon = (this / 10000.0).roundToInt()
+    return "${manwon}만원"
+}
+
+

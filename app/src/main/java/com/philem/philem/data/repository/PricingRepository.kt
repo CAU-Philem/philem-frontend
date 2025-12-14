@@ -67,10 +67,12 @@ class PricingRepository {
         modelId: Long,
         userRegionId: Long,
         radiusKm: Int = 10,
-        limit: Int = 10
+        limit: Int = 10,
+        condition: String? = null,
+        itemType: String = "ALL"
     ): Result<RecommendationsResponse> = withContext(Dispatchers.IO) {
         try {
-            val response = api.getRecommendations(modelId, userRegionId, radiusKm, limit)
+            val response = api.getRecommendations(modelId, userRegionId, radiusKm, limit, condition, itemType)
             Result.success(response)
         } catch (e: Exception) {
             Result.failure(e)
