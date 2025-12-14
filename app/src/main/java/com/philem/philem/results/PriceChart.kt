@@ -84,6 +84,19 @@ fun PriceChart(
     val averagePrice = currentGradeData.map { it.avg_price }.average().toLong()
     val currentPrice = productSet.getPriceFor(selectedComponent)
 
+    val latestSnapshot = currentGradeData.maxByOrNull { it.sold_year * 12 + it.sold_month }
+    val latestAvgPrice = latestSnapshot?.avg_price ?: averagePrice
+    val latestMonthText = latestSnapshot?.let { "${it.sold_month}월" } ?: "최근"
+    val latestDiscountPercent = if (latestAvgPrice > 0) {
+        (((latestAvgPrice - currentPrice) * 100.0) / latestAvgPrice).roundToInt()
+    } else 0
+
+    val latestDiscountDirection = when {
+        latestDiscountPercent > 0 -> "LOWER"
+        latestDiscountPercent < 0 -> "HIGHER"
+        else -> "SAME"
+    }
+
     // 디버그 로깅
     android.util.Log.d("PriceChart", "===== 차트 렌더링 =====")
     android.util.Log.d("PriceChart", "selectedComponent: $selectedComponent")
@@ -192,11 +205,11 @@ fun PriceChart(
                     }
 
                     // 할인율 배지 (한 줄 표시)
-                    if (discountPercent > 0 || discountDirection != "SAME") {
-                        when (discountDirection) {
+                    if (latestDiscountPercent != 0 || latestDiscountDirection != "SAME") {
+                        when (latestDiscountDirection) {
                             "LOWER" -> {
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFE8F5E9),
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
@@ -204,27 +217,20 @@ fun PriceChart(
                                     )
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
                                             text = "↓",
-                                            fontSize = 22.sp,
+                                            fontSize = 18.sp,
                                             color = Color(0xFF4CAF50),
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "${discountPercent}%",
-                                            fontSize = 20.sp,
-                                            color = Color(0xFF4CAF50),
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = "저렴",
+                                            text = "$latestMonthText 대비 ${kotlin.math.abs(latestDiscountPercent)}%",
                                             fontSize = 14.sp,
-                                            color = Color(0xFF4CAF50),
+                                            color = Color(0xFF2E7D32),
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
                                         )
@@ -233,7 +239,7 @@ fun PriceChart(
                             }
                             "HIGHER" -> {
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFFFEBEE),
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
@@ -241,27 +247,20 @@ fun PriceChart(
                                     )
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
                                             text = "↑",
-                                            fontSize = 22.sp,
+                                            fontSize = 18.sp,
                                             color = Color(0xFFE53935),
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "${discountPercent}%",
-                                            fontSize = 20.sp,
-                                            color = Color(0xFFE53935),
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = "비쌈",
+                                            text = "$latestMonthText 대비 ${kotlin.math.abs(latestDiscountPercent)}%",
                                             fontSize = 14.sp,
-                                            color = Color(0xFFE53935),
+                                            color = Color(0xFFC62828),
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
                                         )
@@ -269,30 +268,29 @@ fun PriceChart(
                                 }
                             }
                             else -> {
-                                // SAME이지만 퍼센트가 0이 아닌 경우도 표시
-                                if (discountPercent > 0) {
+                                if (latestDiscountPercent != 0) {
                                     Surface(
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = RoundedCornerShape(10.dp),
                                         color = Color(0xFFF5F5F5)
                                     ) {
                                         Text(
-                                            text = "평균가 ±${discountPercent}%",
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF757575),
+                                            text = "$latestMonthText ±${kotlin.math.abs(latestDiscountPercent)}%",
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF616161),
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
                                 } else {
                                     Surface(
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = RoundedCornerShape(10.dp),
                                         color = Color(0xFFF5F5F5)
                                     ) {
                                         Text(
-                                            text = "평균가",
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF757575),
+                                            text = "$latestMonthText 평균가",
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF616161),
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
@@ -300,16 +298,15 @@ fun PriceChart(
                             }
                         }
                     } else {
-                        // 할인율 정보가 없는 경우
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = Color(0xFFF5F5F5)
                         ) {
                             Text(
-                                text = "시세 분석중",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                fontSize = 14.sp,
-                                color = Color(0xFF757575),
+                                text = "$latestMonthText 시세 분석중",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                fontSize = 13.sp,
+                                color = Color(0xFF616161),
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -395,7 +392,7 @@ private fun EmptyChartPlaceholder(
 }
 @Composable
 private fun ChartHeader(
-    productGrade: String,  // 상품의 실제 등급
+    productGrade: String,
     currentSelectedGrade: String,
     productSet: ProductSet,
     selectedComponent: String,
@@ -406,8 +403,15 @@ private fun ChartHeader(
     touchedGrade: String?,
     gradeDataMap: Map<String, List<ModelPriceSnapshot>>
 ) {
-    // 선택한 구성의 현재가 가져오기
     val currentPrice = productSet.getPriceFor(selectedComponent)
+
+    val currentGradeSnapshots = gradeDataMap[productGrade].orEmpty()
+    val latestSnapshot = currentGradeSnapshots.maxByOrNull { it.sold_year * 12 + it.sold_month }
+    val latestAvgPrice = latestSnapshot?.avg_price ?: interpolatedData.lastOrNull()?.avg_price ?: 0L
+    val latestMonthText = latestSnapshot?.let { "${it.sold_month}월" } ?: "최근"
+    val latestDiscountPercent = if (latestAvgPrice > 0) {
+        (((latestAvgPrice - currentPrice) * 100.0) / latestAvgPrice).roundToInt()
+    } else 0
 
     // 세트 가격 계산 (바디 + 렌즈)
     val setPrice = if (productSet.hasBody && productSet.hasLens) {
@@ -474,16 +478,16 @@ private fun ChartHeader(
                 } else {
                     // 기본 상태: 평균 기준으로 계산 (상품 등급과 현재 선택 등급이 동일할 때만)
                     if (currentSelectedGrade == productGrade) {
-                        if (discountPercent > 0) {
+                        if (latestDiscountPercent > 0) {
                             Text(
-                                text = "평균 대비 $discountPercent% 저렴",
+                                text = "최근 시세 대비 ${kotlin.math.abs(latestDiscountPercent)}% 저렴",
                                 fontSize = 12.sp,
                                 color = Color(0xFFE53935),
                                 fontWeight = FontWeight.Medium
                             )
-                        } else if (discountPercent < 0) {
+                        } else if (latestDiscountPercent < 0) {
                             Text(
-                                text = "평균 대비 ${-discountPercent}% 비쌈",
+                                text = "최근 시세 대비 ${kotlin.math.abs(latestDiscountPercent)}% 비쌈",
                                 fontSize = 12.sp,
                                 color = Color(0xFFFF6F00),
                                 fontWeight = FontWeight.Medium
