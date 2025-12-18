@@ -157,6 +157,9 @@ class ResultsActivity : ComponentActivity() {
                                             filters = viewModel.relatedProductFilters.collectAsState().value,
                                             isLoading = viewModel.relatedProductsLoading.collectAsState().value,
                                             error = viewModel.relatedProductsError.collectAsState().value,
+                                            // [추가] 이 줄을 꼭 넣어주세요!
+                                            unitTypeOptions = viewModel.availableUnitTypes,
+                                            mountOptions = viewModel.availableMounts,
                                             onFilterToggle = viewModel::toggleRelatedFilter,
                                             onClearFilters = viewModel::clearRelatedFilters,
                                             onApplyFilters = viewModel::applyFilters // ✅ 이 줄을 추가하세요!
@@ -1043,6 +1046,8 @@ private fun RelatedProductsSection(
     filters: ResultsViewModel.RelatedProductFilters,
     isLoading: Boolean,
     error: String?,
+    unitTypeOptions: List<String>,
+    mountOptions: List<String>, // <--- [1] 이 줄을 추가하세요! (마운트 목록 받기)
     onFilterToggle: (String, String) -> Unit,
     onClearFilters: () -> Unit,
     onApplyFilters: () -> Unit // [추가] 매개변수
@@ -1144,6 +1149,17 @@ private fun RelatedProductsSection(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // [추가] 제품 분류 필터 섹션 =================================
+                        FilterSection(
+                            title = "제품 분류",
+                            options = unitTypeOptions,
+                            selected = filters.unitTypes,
+                            onToggle = { value -> onFilterToggle("unitType", value) },
+                            displayNames = mapOf("BODY" to "바디", "LENS" to "렌즈") // 한글 표시
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        // =========================================================
                         FilterSection(
                             title = "등급",
                             options = listOf("A", "B", "C"),
@@ -1158,6 +1174,15 @@ private fun RelatedProductsSection(
                             options = listOf("Sony", "Nikon", "Canon", "Fujifilm", "Tamron", "Samyang", "Viltrox"),
                             selected = filters.brands,
                             onToggle = { value -> onFilterToggle("brand", value) }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        FilterSection(
+                            title = "마운트",
+                            options = mountOptions, // 아까 파라미터로 받은 리스트 사용
+                            selected = filters.mounts,
+                            onToggle = { value -> onFilterToggle("mount", value) }
                         )
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))

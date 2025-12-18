@@ -1,24 +1,22 @@
 package com.philem.philem.results
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.philem.philem.data.model.ProductItem
+import com.philem.philem.data.repository.PricingRepository
+import com.philem.philem.domain.pricing.dto.AnalyzeUrlResponse
+import com.philem.philem.domain.pricing.dto.BundleCompareItem
+import com.philem.philem.domain.pricing.dto.ListingItem
+import com.philem.philem.domain.pricing.dto.ListingSummary
+import com.philem.philem.domain.pricing.dto.ModelPriceSnapshot
+import com.philem.philem.domain.pricing.dto.ProductSet
+import com.philem.philem.domain.pricing.dto.RegionSearchResult
+import com.philem.philem.domain.pricing.dto.RelatedProductItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-import androidx.lifecycle.viewModelScope
-import com.philem.philem.data.repository.PricingRepository
-import com.philem.philem.domain.pricing.dto.BundleCompareItem
-import com.philem.philem.domain.pricing.dto.ModelPriceSnapshot
-import com.philem.philem.domain.pricing.dto.ProductSet
-import com.philem.philem.domain.pricing.dto.AnalyzeUrlResponse
-import com.philem.philem.domain.pricing.dto.ListingItem
-import com.philem.philem.domain.pricing.dto.ListingSummary
-import com.philem.philem.domain.pricing.dto.RegionSearchResult
-import com.philem.philem.domain.pricing.dto.RelatedProductItem
 import kotlinx.coroutines.launch
-import android.util.Log
-
 
 /**
  * ResultsActivity를 위한 UI 상태
@@ -34,6 +32,8 @@ data class ResultsUiState(
  * ResultsActivity의 로직을 담당하는 ViewModel
  */
 class ResultsViewModel : ViewModel() {
+    // 2. 선택 가능한 옵션 리스트 정의 (클래스 멤버 변수로 추가)
+    val availableUnitTypes = listOf("BODY", "LENS")
 
     private val repository = PricingRepository()
 
@@ -90,6 +90,17 @@ class ResultsViewModel : ViewModel() {
     private val _regionSearchError = MutableStateFlow<String?>(null)
     val regionSearchError: StateFlow<String?> = _regionSearchError.asStateFlow()
 
+    val availableMounts = listOf(
+        "Sony E",
+        "Canon RF",
+        "Canon EF",
+        "Nikon Z",
+        "Nikon F",
+        "Fuji X",
+        "L-Mount",
+        "Micro Four Thirds"
+    )
+
     private var lastRecommendationModelId: Long? = null
     private var lastRecommendationPreferredGrade: String = "B"
     private var lastRecommendationIsBundle: Boolean = false
@@ -109,6 +120,7 @@ class ResultsViewModel : ViewModel() {
 
     // 연관 제품 필터 상태
     data class RelatedProductFilters(
+        val unitTypes: Set<String> = emptySet(), // BODY, LENS
         val conditions: Set<String> = emptySet(), // A, B, C
         val brands: Set<String> = emptySet(),
         val cameraTypes: Set<String> = emptySet(), // MIRRORLESS, DSLR
@@ -364,14 +376,6 @@ class ResultsViewModel : ViewModel() {
                     }
                 }
 
-                // null 체크용 상세 로그
-                if (snapshots.any { it.componentType == "body" }) {
-                    Log.d("ResultsViewModel", "   ✅ 'body' 타입 데이터 존재")
-                }
-                if (snapshots.any { it.componentType == "combined" }) {
-                    Log.d("ResultsViewModel", "   ✅ 'combined' 타입 데이터 존재")
-                }
-
                 _priceSnapshots.value = snapshots
 
                 if (snapshots.isNotEmpty()) {
@@ -389,10 +393,6 @@ class ResultsViewModel : ViewModel() {
                     compareResult
                         .onSuccess { compareResponse ->
                             Log.d("ResultsViewModel", "3. 가격 비교 성공:")
-                            Log.d("ResultsViewModel", "   - available: ${compareResponse.available}")
-                            Log.d("ResultsViewModel", "   - direction: ${compareResponse.direction}")
-                            Log.d("ResultsViewModel", "   - percentVsRef: ${compareResponse.percentVsRef}")
-
                             _productSet.value = if (compareResponse.available) {
                                 ProductSet.fromCompareResponse(
                                     modelName = item.modelName,
@@ -401,7 +401,6 @@ class ResultsViewModel : ViewModel() {
                                     componentSnapshots = snapshots
                                 )
                             } else {
-                                Log.d("ResultsViewModel", "   비교 데이터 없음, 기본 ProductSet 생성")
                                 ProductSet(
                                     name = item.modelName,
                                     combinedPrice = item.price,
@@ -453,18 +452,12 @@ class ResultsViewModel : ViewModel() {
         val lensItem = response.items.find { it.role == "LENS" }
 
         if (bodyItem == null || lensItem == null) {
-            Log.e("ResultsViewModel", "번들 상품이지만 바디 또는 렌즈 정보 없음")
-            Log.e("ResultsViewModel", "   - bodyItem: $bodyItem")
-            Log.e("ResultsViewModel", "   - lensItem: $lensItem")
             _error.value = "번들 상품이지만 바디 또는 렌즈 정보가 없습니다."
             _isLoading.value = false
             return
         }
 
         _modelName.value = "${bodyItem.modelName} + ${lensItem.modelName}"
-
-        Log.d("ResultsViewModel", "2. 바디 스냅샷 요청: modelId=${bodyItem.modelId}")
-        Log.d("ResultsViewModel", "3. 렌즈 스냅샷 요청: modelId=${lensItem.modelId}")
 
         // 바디와 렌즈 스냅샷을 각각 조회
         val bodySnapshotsResult = repository.getSnapshots(bodyItem.modelId, months = 24)
@@ -473,40 +466,17 @@ class ResultsViewModel : ViewModel() {
         val bodySnapshots = bodySnapshotsResult.getOrNull() ?: emptyList()
         val lensSnapshots = lensSnapshotsResult.getOrNull() ?: emptyList()
 
-        Log.d("ResultsViewModel", "2. 바디 스냅샷 결과: ${bodySnapshots.size}건")
-        bodySnapshots.groupBy { it.componentType }.forEach { (type, list) ->
-            Log.d("ResultsViewModel", "   - $type: ${list.size}건")
-        }
-
-        Log.d("ResultsViewModel", "3. 렌즈 스냅샷 결과: ${lensSnapshots.size}건")
-        lensSnapshots.groupBy { it.componentType }.forEach { (type, list) ->
-            Log.d("ResultsViewModel", "   - $type: ${list.size}건")
-        }
-
         if (bodySnapshots.isEmpty() && lensSnapshots.isEmpty()) {
-            Log.e("ResultsViewModel", "바디와 렌즈 모두 스냅샷 없음!")
             _error.value = "바디와 렌즈 모두 시세 데이터가 없습니다."
             _isLoading.value = false
             return
         }
 
-        // 합본 스냅샷 생성 (바디 + 렌즈 가격 합산)
+        // 합본 스냅샷 생성
         val combinedSnapshots = createCombinedSnapshots(bodySnapshots, lensSnapshots, bodyItem.condition)
 
-        Log.d("ResultsViewModel", "4. 합본 스냅샷 생성: ${combinedSnapshots.size}건")
-
-        // 모든 스냅샷 병합 (합본 + 바디 + 렌즈)
+        // 모든 스냅샷 병합
         _priceSnapshots.value = combinedSnapshots + bodySnapshots + lensSnapshots
-
-        Log.d("ResultsViewModel", "   전체 스냅샷: ${_priceSnapshots.value.size}건")
-        _priceSnapshots.value.groupBy { it.componentType }.forEach { (type, list) ->
-            Log.d("ResultsViewModel", "   - $type: ${list.size}건")
-        }
-
-        Log.d("ResultsViewModel", "5. 번들 비교 요청:")
-        Log.d("ResultsViewModel", "   - bundlePrice: ${response.bundleTotalPrice}")
-        Log.d("ResultsViewModel", "   - body: ${bodyItem.modelId}, ${bodyItem.condition}")
-        Log.d("ResultsViewModel", "   - lens: ${lensItem.modelId}, ${lensItem.condition}")
 
         // 번들 비교 API 호출
         val bundleCompareResult = repository.compareBundlePrice(
@@ -519,11 +489,6 @@ class ResultsViewModel : ViewModel() {
 
         bundleCompareResult
             .onSuccess { compareResponse ->
-                Log.d("ResultsViewModel", "5. 번들 비교 성공:")
-                Log.d("ResultsViewModel", "   - available: ${compareResponse.available}")
-                Log.d("ResultsViewModel", "   - direction: ${compareResponse.direction}")
-                Log.d("ResultsViewModel", "   - percentVsRef: ${compareResponse.percentVsRef}")
-
                 _productSet.value = ProductSet.fromBundleResponse(
                     name = _modelName.value,
                     bundlePrice = response.bundleTotalPrice,
@@ -535,8 +500,6 @@ class ResultsViewModel : ViewModel() {
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
             .onFailure { throwable ->
-                Log.e("ResultsViewModel", "5. 번들 비교 실패: ${throwable.message}", throwable)
-                // 번들 비교 실패해도 스냅샷으로 그래프는 표시
                 _productSet.value = ProductSet(
                     name = _modelName.value,
                     combinedPrice = response.bundleTotalPrice,
@@ -554,9 +517,6 @@ class ResultsViewModel : ViewModel() {
         Log.d("ResultsViewModel", "========== API 호출 완료 ==========")
     }
 
-    /**
-     * 바디와 렌즈 스냅샷을 합쳐 합본 스냅샷 생성
-     */
     private fun createCombinedSnapshots(
         bodySnapshots: List<ModelPriceSnapshot>,
         lensSnapshots: List<ModelPriceSnapshot>,
@@ -596,16 +556,15 @@ class ResultsViewModel : ViewModel() {
             "BUNDLE" -> "SINGLE"
             else -> "SINGLE"
         }
-        Log.d("ResultsViewModel", "[ToggleItemType] switched to ${_selectedItemType.value}")
         retryRecommendations()
     }
 
-    /**
-     * 연관 제품 필터 토글
-     */
     fun toggleRelatedFilter(filterType: String, value: String) {
         val current = _relatedProductFilters.value
         _relatedProductFilters.value = when (filterType) {
+            "unitType" -> current.copy(
+                unitTypes = if (value in current.unitTypes) current.unitTypes - value else current.unitTypes + value
+            )
             "condition" -> current.copy(
                 conditions = if (value in current.conditions) current.conditions - value else current.conditions + value
             )
@@ -629,43 +588,30 @@ class ResultsViewModel : ViewModel() {
             )
             else -> current
         }
-        // fetchRelatedProducts()  <-- [제거] 즉시 호출하지 않음
     }
 
-    // [수정] 필터 초기화 시 API 호출 제거 (UI 상태만 초기화)
     fun clearRelatedFilters() {
         _relatedProductFilters.value = RelatedProductFilters()
-        // fetchRelatedProducts() <-- [제거] 즉시 호출하지 않음
     }
 
-    // [추가] 적용 버튼 클릭 시 호출할 함수
     fun applyFilters() {
         fetchRelatedProducts()
     }
-    /**
-     * 연관 제품 필터 초기화
-     */
 
-    /**
-     * 연관 제품 추천 초기화 및 가져오기
-     */
     fun initializeRelatedProducts(modelId: Long, unitType: String) {
         baseModelId = modelId
         baseUnitType = unitType
 
-        // 필터 초기화 (빈 상태로 시작)
+        // 필터 초기화
         _relatedProductFilters.value = RelatedProductFilters()
 
         Log.d("ResultsViewModel", "[RelatedProducts] 초기화: modelId=$modelId, unitType=$unitType")
         fetchRelatedProducts()
     }
 
-    /**
-     * 연관 제품 추천 API 호출
-     */
     private fun fetchRelatedProducts() {
         val modelId = baseModelId ?: return
-        val unitType = baseUnitType ?: return
+        val currentUnitType = baseUnitType ?: return
 
         viewModelScope.launch {
             _relatedProductsLoading.value = true
@@ -673,103 +619,76 @@ class ResultsViewModel : ViewModel() {
 
             val filters = _relatedProductFilters.value
 
-            // 필터가 선택되었는지 확인
-            val hasFilters = filters.conditions.isNotEmpty() ||
-                            filters.brands.isNotEmpty() ||
-                            filters.cameraTypes.isNotEmpty() ||
-                            filters.mounts.isNotEmpty() ||
-                            filters.sensorFormats.isNotEmpty() ||
-                            filters.minPrice != null ||
-                            filters.maxPrice != null
+            val selectedUnitType = filters.unitTypes.firstOrNull()
+            val targetUnitType = selectedUnitType ?: (if (currentUnitType == "BODY") "LENS" else "BODY")
 
-            // 필터 없으면 BODY_TO_LENS, 있으면 FILTER 모드
-            val mode = if (hasFilters) "FILTER" else "BODY_TO_LENS"
+            val hasFilters = filters.unitTypes.isNotEmpty() ||
+                    filters.conditions.isNotEmpty() ||
+                    filters.brands.isNotEmpty() ||
+                    filters.cameraTypes.isNotEmpty() ||
+                    filters.mounts.isNotEmpty() ||
+                    filters.sensorFormats.isNotEmpty() ||
+                    filters.minPrice != null ||
+                    filters.maxPrice != null
 
-            Log.d("ResultsViewModel", "========== 연관 제품 추천 API 호출 시작 ==========")
-            Log.d("ResultsViewModel", "[RelatedProducts] 기본 정보:")
-            Log.d("ResultsViewModel", "  - modelId: $modelId")
-            Log.d("ResultsViewModel", "  - unitType: $unitType")
-            Log.d("ResultsViewModel", "  - 필터 선택 여부: $hasFilters")
-            Log.d("ResultsViewModel", "  - 사용 모드: $mode")
+            val mode = if (hasFilters) {
+                "FILTER"
+            } else {
+                if (targetUnitType == "LENS") "BODY_TO_LENS" else "LENS_TO_BODY"
+            }
 
-            Log.d("ResultsViewModel", "[RelatedProducts] 선택된 필터:")
-            Log.d("ResultsViewModel", "  - conditions: ${filters.conditions.joinToString()}")
-            Log.d("ResultsViewModel", "  - brands: ${filters.brands.joinToString()}")
-            Log.d("ResultsViewModel", "  - cameraTypes: ${filters.cameraTypes.joinToString()}")
-            Log.d("ResultsViewModel", "  - mounts: ${filters.mounts.joinToString()}")
-            Log.d("ResultsViewModel", "  - sensorFormats: ${filters.sensorFormats.joinToString()}")
-            Log.d("ResultsViewModel", "  - minPrice: ${filters.minPrice}")
-            Log.d("ResultsViewModel", "  - maxPrice: ${filters.maxPrice}")
+            // FILTER 모드일 때는 ID를 보내지 않음 (null 처리)
+            val reqBodyModelId: Long?
+            val reqLensModelId: Long?
+
+            if (mode == "FILTER") {
+                reqBodyModelId = null
+                reqLensModelId = null
+            } else {
+                reqBodyModelId = if (currentUnitType == "BODY" && targetUnitType == "LENS") modelId else null
+                reqLensModelId = if (currentUnitType == "LENS" && targetUnitType == "BODY") modelId else null
+            }
+
+            // 값 매핑 (UI String -> API 규격)
+            // 브랜드, 카메라 타입: 대소문자 그대로 (Sony, Mirrorless)
+            // 마운트: 약어 매핑 (Sony E -> E)
+            val apiBrands = filters.brands.map { mapToApiValue("brand", it) }.ifEmpty { null }
+            val apiCameraTypes = filters.cameraTypes.map { mapToApiValue("cameraType", it) }.ifEmpty { null }
+            val apiMounts = filters.mounts.map { mapToApiValue("mount", it) }.ifEmpty { null }
+            val apiSensorFormats = filters.sensorFormats.map { mapToApiValue("sensorFormat", it) }.ifEmpty { null }
+            val apiConditions = filters.conditions.toList().ifEmpty { null }
+
+            Log.d("ResultsViewModel", "[RelatedProducts] API 요청 준비: mode=$mode, target=$targetUnitType")
+            Log.d("ResultsViewModel", "  -> Brands: $apiBrands")
+            Log.d("ResultsViewModel", "  -> Mounts: $apiMounts")
 
             val request = com.philem.philem.domain.pricing.dto.RelatedProductsRequest(
                 mode = mode,
-                conditions = filters.conditions.takeIf { it.isNotEmpty() }?.toList(),
+                conditions = apiConditions,
                 minPrice = filters.minPrice,
                 maxPrice = filters.maxPrice,
-                brands = filters.brands.takeIf { it.isNotEmpty() }?.toList(),
-                unitType = "LENS",
-                cameraTypes = filters.cameraTypes.takeIf { it.isNotEmpty() }?.toList(),
-                mounts = filters.mounts.takeIf { it.isNotEmpty() }?.toList(),
-                sensorFormats = filters.sensorFormats.takeIf { it.isNotEmpty() }?.toList(),
-                bodyModelId = modelId,
-                lensModelId = null,
+                brands = apiBrands,
+                unitType = targetUnitType,
+                cameraTypes = apiCameraTypes,
+                mounts = apiMounts,
+                sensorFormats = apiSensorFormats,
+                bodyModelId = reqBodyModelId,
+                lensModelId = reqLensModelId,
                 page = 0,
                 size = 20
             )
 
-            Log.d("ResultsViewModel", "[RelatedProducts] API 요청 파라미터:")
-            Log.d("ResultsViewModel", "  - mode: ${request.mode}")
-            Log.d("ResultsViewModel", "  - conditions: ${request.conditions} → API 전송값: ${request.conditions?.firstOrNull()}")
-            Log.d("ResultsViewModel", "  - brands: ${request.brands} → API 전송값: ${request.brands?.firstOrNull()}")
-            Log.d("ResultsViewModel", "  - cameraTypes: ${request.cameraTypes} → API 전송값: ${request.cameraTypes?.firstOrNull()}")
-            Log.d("ResultsViewModel", "  - mounts: ${request.mounts} → API 전송값: ${request.mounts?.firstOrNull()}")
-            Log.d("ResultsViewModel", "  - sensorFormats: ${request.sensorFormats} → API 전송값: ${request.sensorFormats?.firstOrNull()}")
-            Log.d("ResultsViewModel", "  - bodyModelId: ${request.bodyModelId}")
-            Log.d("ResultsViewModel", "  - lensModelId: ${request.lensModelId}")
-            Log.d("ResultsViewModel", "  - page: ${request.page}")
-            Log.d("ResultsViewModel", "  - size: ${request.size}")
-            Log.d("ResultsViewModel", "  - minPrice: ${request.minPrice}")
-            Log.d("ResultsViewModel", "  - maxPrice: ${request.maxPrice}")
-            Log.d("ResultsViewModel", "  - unitType: ${request.unitType}")
-
-            Log.d("ResultsViewModel", "[RelatedProducts] API 호출 시작...")
-            Log.d("ResultsViewModel", "  실제 URL: GET /api/listings/search?mode=${request.mode}&unitType=${request.unitType}&bodyModelId=${request.bodyModelId}&page=${request.page}&size=${request.size}")
-
             val result = repository.getRelatedProducts(request)
             result
                 .onSuccess { response ->
-                    Log.d("ResultsViewModel", "[RelatedProducts] ✅ API 호출 성공")
-                    Log.d("ResultsViewModel", "  - total: ${response.total}")
-                    Log.d("ResultsViewModel", "  - page: ${response.page}")
-                    Log.d("ResultsViewModel", "  - size: ${response.size}")
-                    Log.d("ResultsViewModel", "  - items 개수: ${response.items.size}")
-
-                    response.items.forEachIndexed { index, item ->
-                        Log.d("ResultsViewModel", "  [Item $index]")
-                        Log.d("ResultsViewModel", "    - modelId: ${item.modelId}")
-                        Log.d("ResultsViewModel", "    - modelName: ${item.modelName}")
-                        Log.d("ResultsViewModel", "    - brand: ${item.brand}")
-                        Log.d("ResultsViewModel", "    - condition: ${item.condition}")
-                        Log.d("ResultsViewModel", "    - price: ${item.price}")
-                        Log.d("ResultsViewModel", "    - unitType: ${item.unitType}")
-                        Log.d("ResultsViewModel", "    - cameraType: ${item.cameraType}")
-                        Log.d("ResultsViewModel", "    - mount: ${item.mount}")
-                        Log.d("ResultsViewModel", "    - sensorFormat: ${item.sensorFormat}")
-                    }
-
+                    Log.d("ResultsViewModel", "[RelatedProducts] ✅ API 호출 성공: ${response.total}건")
                     _relatedProducts.value = response.items
                     _relatedProductsError.value = null
-                    Log.d("ResultsViewModel", "========== 연관 제품 추천 API 호출 완료 ==========")
                 }
                 .onFailure { throwable ->
-                    Log.e("ResultsViewModel", "[RelatedProducts] ❌ API 호출 실패")
-                    Log.e("ResultsViewModel", "  - 에러 타입: ${throwable.javaClass.simpleName}")
-                    Log.e("ResultsViewModel", "  - 에러 메시지: ${throwable.message}")
-                    Log.e("ResultsViewModel", "  - 스택 트레이스:", throwable)
-
+                    Log.e("ResultsViewModel", "[RelatedProducts] ❌ API 호출 실패", throwable)
                     _relatedProducts.value = emptyList()
                     _relatedProductsError.value = "연관 제품 추천 실패: ${throwable.message}"
-                    Log.d("ResultsViewModel", "========== 연관 제품 추천 API 호출 실패 ==========")
                 }
 
             _relatedProductsLoading.value = false
@@ -786,7 +705,7 @@ class ResultsViewModel : ViewModel() {
 
             val regionId = _userRegionId.value
             val itemType = _selectedItemType.value
-            Log.d("ResultsViewModel", "[Recommendations] requesting model=$modelId region=$regionId grade=$preferredGrade itemType=$itemType")
+
             val result = repository.getRecommendations(
                 modelId = modelId,
                 userRegionId = regionId,
@@ -797,29 +716,53 @@ class ResultsViewModel : ViewModel() {
             )
             result
                 .onSuccess { response ->
-                     val byCondition = response.byCondition ?: emptyMap()
-                     _recommendations.value = byCondition
-                     val gradesWithData = byCondition.filterValues { it.isNotEmpty() }.keys
+                    val byCondition = response.byCondition ?: emptyMap()
+                    _recommendations.value = byCondition
+                    val gradesWithData = byCondition.filterValues { it.isNotEmpty() }.keys
 
-                     val desiredGrade = when {
-                         byCondition[_selectedRecommendationGrade.value]?.isNotEmpty() == true -> _selectedRecommendationGrade.value
-                         byCondition[preferredGrade]?.isNotEmpty() == true -> preferredGrade
-                         gradesWithData.isNotEmpty() -> gradesWithData.first()
-                         else -> preferredGrade
-                     }
-                     _selectedRecommendationGrade.value = desiredGrade
-                     if (response.userRegionId != _userRegionId.value) {
-                         _userRegionId.value = response.userRegionId
-                     }
-                    Log.d("ResultsViewModel", "[Recommendations] success grades=${byCondition.keys} selected=$desiredGrade")
-                 }
+                    val desiredGrade = when {
+                        byCondition[_selectedRecommendationGrade.value]?.isNotEmpty() == true -> _selectedRecommendationGrade.value
+                        byCondition[preferredGrade]?.isNotEmpty() == true -> preferredGrade
+                        gradesWithData.isNotEmpty() -> gradesWithData.first()
+                        else -> preferredGrade
+                    }
+                    _selectedRecommendationGrade.value = desiredGrade
+                    if (response.userRegionId != _userRegionId.value) {
+                        _userRegionId.value = response.userRegionId
+                    }
+                }
                 .onFailure { throwable ->
                     Log.e("ResultsViewModel", "[Recommendations] failure: ${throwable.message}", throwable)
-                     _recommendations.value = emptyMap()
-                     _recommendationsError.value = throwable.message ?: "추천 불러오기 실패"
-                 }
+                    _recommendations.value = emptyMap()
+                    _recommendationsError.value = throwable.message ?: "추천 불러오기 실패"
+                }
 
             _recommendationsLoading.value = false
+        }
+    }
+
+    /**
+     * UI 값을 서버 API 규격으로 변환
+     */
+    private fun mapToApiValue(category: String, uiValue: String): String {
+        return when (category) {
+            "brand" -> uiValue // Sony -> Sony (그대로 유지)
+            "cameraType" -> uiValue // Mirrorless -> Mirrorless (그대로 유지)
+            "sensorFormat" -> uiValue.replace(" ", "_").uppercase() // Full Frame -> FULL_FRAME
+            "mount" -> {
+                when (uiValue) {
+                    "Sony E" -> "E"
+                    "Canon RF" -> "RF"
+                    "Canon EF" -> "EF"
+                    "Nikon Z" -> "Z"
+                    "Nikon F" -> "F"
+                    "Fuji X" -> "X"
+                    "L-Mount" -> "L"
+                    "Micro Four Thirds" -> "MFT"
+                    else -> uiValue.uppercase().replace(" ", "_")
+                }
+            }
+            else -> uiValue
         }
     }
 }

@@ -109,7 +109,8 @@ class PricingRepository {
                 sensorFormat = request.sensorFormats?.firstOrNull(),
                 bodyModelId = request.bodyModelId,
                 lensModelId = request.lensModelId,
-                presetLensBrand = request.presetLensBrand,
+//                presetLensBrand = request.presetLensBrand,
+                presetLensBrand = null,
                 page = request.page,
                 size = request.size
             )
