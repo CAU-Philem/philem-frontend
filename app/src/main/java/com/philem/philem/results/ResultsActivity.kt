@@ -266,6 +266,47 @@ class ResultsActivity : ComponentActivity() {
             }
         }
     }
+    // 여기에 삽입하세요!
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent) // 액티비티가 새로 생성되지 않으므로, 전달받은 새 인텐트로 교체해줍니다.
+
+    val newUrl = intent.getStringExtra("target_url") ?: ""
+    android.util.Log.d("ResultsActivity", "onNewIntent 호출됨 - 새 URL: '$newUrl'")
+
+    if (newUrl.isNotBlank()) {
+        // 새 URL이 들어오면 ViewModel을 통해 분석 프로세스를 다시 시작합니다.
+        viewModel.analyzeAndLoadPriceData(newUrl)
+    }
+}
+// ResultsActivity.kt 내부에 추가
+
+internal fun showSelectionDialog(url: String) {
+    val options = arrayOf("이 상품 분석하기", "당근에서 상품 확인하기")
+
+    androidx.appcompat.app.AlertDialog.Builder(this)
+        .setTitle("원하는 동작을 선택해주세요")
+        .setItems(options) { _, which ->
+            when (which) {
+                0 -> { // 분석하기
+                    val intent = Intent(this, ResultsActivity::class.java).apply {
+                        putExtra("target_url", url)
+                        // 새 액티비티를 스택 상단에 올리거나, 기존 액티비티를 재사용하도록 설정 가능
+                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    startActivity(intent)
+                    // 현재 액티비티를 종료하고 새로 열고 싶다면 finish() 호출
+                }
+                1 -> { // 당근에서 상품 확인하기
+                    runCatching {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        startActivity(intent)
+                    }
+                }
+            }
+        }
+        .show()
+}
 }
 
 // ==============================
@@ -635,14 +676,15 @@ private fun RecommendationList(list: List<ListingSummary>) {
 @Composable
 private fun RecommendationCard(item: ListingSummary) {
     val context = LocalContext.current
+    // [추가] activity 변수 정의
+    val activity = context as? ResultsActivity
+
     Card(
         modifier = Modifier
             .width(220.dp)
             .clickable {
-                runCatching {
-                    val intent = Intent(Intent.ACTION_VIEW, item.postUrl.toUri())
-                    context.startActivity(intent)
-                }
+                // 수정된 부분: 이제 activity 객체를 통해 dialog 호출이 가능합니다.
+                activity?.showSelectionDialog(item.postUrl)
             },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -1169,15 +1211,18 @@ private fun PriceFilterSection(
 @Composable
 private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.RelatedProductItem) {
     val context = LocalContext.current
+    val activity = context as? ResultsActivity
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                runCatching {
-                    val intent = Intent(Intent.ACTION_VIEW, product.postUrl.toUri())
-                    context.startActivity(intent)
-                }
+                // 수정된 부분: 이제 activity 객체를 통해 dialog 호출이 가능합니다.
+                activity?.showSelectionDialog(product.postUrl)
             },
+//                runCatching {
+//                    val intent = Intent(Intent.ACTION_VIEW, product.postUrl.toUri())
+//                    context.startActivity(intent)
+//                }
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
