@@ -46,7 +46,6 @@ import android.net.Uri
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.core.net.toUri
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.BorderStroke
@@ -440,7 +439,7 @@ fun ResultsScreen(
 
                 Text(text = "시세 그래프", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                 Image(
-                    painter = painterResource(id = R.drawable.img_main_camera),
+                    painter = painterResource(id = R.drawable.img_main_camera1),
                     contentDescription = "시세 그래프",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -566,7 +565,7 @@ fun ProductItemCard(product: ProductItem) {
     ) {
         Column {
             Image(
-                painter = painterResource(id = R.drawable.img_main_camera),
+                painter = painterResource(id = R.drawable.img_main_camera1),
                 contentDescription = product.name,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1431,8 +1430,8 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                     contentDescription = product.modelName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    error = painterResource(id = R.drawable.img_main_camera),
-                    placeholder = painterResource(id = R.drawable.img_main_camera)
+                    error = painterResource(id = R.drawable.img_main_camera1),
+                    placeholder = painterResource(id = R.drawable.img_main_camera1)
                 )
 
                 Text(

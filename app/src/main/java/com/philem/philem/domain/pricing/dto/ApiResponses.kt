@@ -134,6 +134,9 @@ data class RelatedProductItem(
     @SerializedName("unitType") val unitType: String,
     @SerializedName("cameraType") val cameraType: String?,
     val mount: String?,
+    // [추가] 이 줄을 추가해야 합니다!
+    @SerializedName("priceType") // JSON 키 이름과 정확히 매칭 (Gson 사용 시)
+    val priceType: String? = null,
     @SerializedName("sensorFormat") val sensorFormat: String?,
     val price: Long?,
     val condition: String,

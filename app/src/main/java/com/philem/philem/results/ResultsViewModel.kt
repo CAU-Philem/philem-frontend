@@ -682,7 +682,9 @@ class ResultsViewModel : ViewModel() {
             result
                 .onSuccess { response ->
                     Log.d("ResultsViewModel", "[RelatedProducts] ✅ API 호출 성공: ${response.total}건")
-                    _relatedProducts.value = response.items
+                    // 주의: RelatedProductItem 데이터 클래스에 priceType 필드가 있어야 합니다.
+                    _relatedProducts.value = response.items.filter { it.priceType == "PER_ITEM" }
+
                     _relatedProductsError.value = null
                 }
                 .onFailure { throwable ->
