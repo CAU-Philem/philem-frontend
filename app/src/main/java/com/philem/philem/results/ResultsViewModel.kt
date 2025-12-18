@@ -103,6 +103,20 @@ class ResultsViewModel : ViewModel() {
         "Micro Four Thirds"
     )
 
+    // [추가] 번들 구성품의 이름을 저장할 변수
+    private var bundleBodyName: String = ""
+    private var bundleLensName: String = ""
+
+    // [추가] 번들 상품일 때, 구성품들의 ID를 저장해둘 변수
+    private var bundleBodyId: Long? = null
+    private var bundleLensId: Long? = null
+    private var bundleBodyCondition: String = "A"
+    private var bundleLensCondition: String = "A"
+
+    // [추가] 현재 선택된 컴포넌트 (combined, body, lens) - UI가 구독할 상태
+    private val _selectedComponent = MutableStateFlow("combined")
+    val selectedComponent: StateFlow<String> = _selectedComponent.asStateFlow()
+
     private var lastRecommendationModelId: Long? = null
     private var lastRecommendationPreferredGrade: String = "B"
     private var lastRecommendationIsBundle: Boolean = false
@@ -358,105 +372,126 @@ class ResultsViewModel : ViewModel() {
     private suspend fun handleSingleProduct(item: ListingItem) {
         _modelName.value = item.modelName
 
-        Log.d("ResultsViewModel", "2. 단일 상품 스냅샷 요청:")
-        Log.d("ResultsViewModel", "   - modelId: ${item.modelId}")
-        Log.d("ResultsViewModel", "   - months: 24")
+        Log.d("ResultsViewModel", "2. 단일 상품 스냅샷 요청: modelId=${item.modelId}, role=${item.role}")
 
-        // 단일 상품 스냅샷 조회
+        // 1. [핵심 수정] 역할에 따라 가격을 제자리에 배치합니다.
+        // 기존 코드에서는 무조건 bodyPrice = item.price, lensPrice = 0L 이라서 렌즈 가격이 0원이었습니다.
+        val inputBodyPrice = if (item.role == "BODY") item.price else 0L
+        val inputLensPrice = if (item.role == "LENS") item.price else 0L
+
+        // 2. 스냅샷 조회
         val snapshotsResult = repository.getSnapshots(item.modelId, months = 24)
-        snapshotsResult
-            .onSuccess { snapshots ->
-                Log.d("ResultsViewModel", "2. 스냅샷 조회 성공:")
-                Log.d("ResultsViewModel", "   - 총 ${snapshots.size}건")
 
-                // componentType별로 그룹화해서 로깅
-                val grouped = snapshots.groupBy { it.componentType }
-                grouped.forEach { (type, list) ->
-                    Log.d("ResultsViewModel", "   - componentType='$type': ${list.size}건")
-                    list.take(2).forEach { snap ->
-                        Log.d("ResultsViewModel", "     ${snap.condition}급 ${snap.sold_year}.${snap.sold_month} avg=${snap.avg_price}")
-                    }
-                }
+        snapshotsResult.onSuccess { rawSnapshots ->
+            Log.d("ResultsViewModel", "2. 스냅샷 조회 성공: ${rawSnapshots.size}건")
 
-                _priceSnapshots.value = snapshots
+            // 단일 상품의 타입 결정 (API의 "BODY" -> "body", "LENS" -> "lens")
+            val targetComponentType = if (item.role == "BODY") "body" else "lens"
 
-                if (snapshots.isNotEmpty()) {
-                    Log.d("ResultsViewModel", "3. 가격 비교 요청:")
-                    Log.d("ResultsViewModel", "   - modelId: ${item.modelId}")
-                    Log.d("ResultsViewModel", "   - condition: ${item.condition}")
-                    Log.d("ResultsViewModel", "   - price: ${item.price}")
+            // 차트가 이 타입을 바라보도록 상태 업데이트
+            _selectedComponent.value = targetComponentType
 
-                    // 비교 API 호출
-                    val compareResult = repository.comparePrice(
-                        item.modelId,
-                        item.condition,
-                        item.price
-                    )
-                    compareResult
-                        .onSuccess { compareResponse ->
-                            Log.d("ResultsViewModel", "3. 가격 비교 성공:")
-                            _productSet.value = if (compareResponse.available) {
-                                ProductSet.fromCompareResponse(
-                                    modelName = item.modelName,
-                                    condition = item.condition,
-                                    response = compareResponse,
-                                    componentSnapshots = snapshots
-                                )
-                            } else {
-                                ProductSet(
-                                    name = item.modelName,
-                                    combinedPrice = item.price,
-                                    bodyPrice = item.price,
-                                    lensPrice = 0L,
-                                    grade = item.condition,
-                                    hasBody = item.role == "BODY",
-                                    hasLens = item.role == "LENS"
-                                )
-                            }
-                            lastRecommendationIsBundle = false
-                            fetchRecommendationsForModel(item.modelId, item.condition)
-                            // 연관 제품 추천 초기화
-                            initializeRelatedProducts(item.modelId, item.role)
-                        }
-                        .onFailure { throwable ->
-                            Log.e("ResultsViewModel", "3. 가격 비교 실패: ${throwable.message}", throwable)
-                            _productSet.value = ProductSet(
+            // 번들 관련 변수 초기화
+            bundleBodyId = null
+            bundleLensId = null
+
+            // 데이터 태깅
+            val taggedSnapshots = rawSnapshots.map { it.copy(_componentType = targetComponentType) }
+            _priceSnapshots.value = taggedSnapshots
+
+            if (taggedSnapshots.isNotEmpty()) {
+                val compareResult = repository.comparePrice(
+                    item.modelId,
+                    item.condition,
+                    item.price
+                )
+                compareResult
+                    .onSuccess { compareResponse ->
+                        // [핵심 수정] .copy()를 사용하여 정확한 bodyPrice/lensPrice를 주입합니다.
+                        val baseSet = if (compareResponse.available) {
+                            ProductSet.fromCompareResponse(
+                                modelName = item.modelName,
+                                condition = item.condition,
+                                response = compareResponse,
+                                componentSnapshots = taggedSnapshots
+                            )
+                        } else {
+                            ProductSet(
                                 name = item.modelName,
                                 combinedPrice = item.price,
-                                bodyPrice = item.price,
-                                lensPrice = 0L,
+                                bodyPrice = inputBodyPrice,
+                                lensPrice = inputLensPrice,
                                 grade = item.condition,
                                 hasBody = item.role == "BODY",
                                 hasLens = item.role == "LENS"
                             )
-                            lastRecommendationIsBundle = false
-                            fetchRecommendationsForModel(item.modelId, item.condition)
-                            // 연관 제품 추천 초기화
-                            initializeRelatedProducts(item.modelId, item.role)
                         }
-                } else {
-                    Log.e("ResultsViewModel", "2. 스냅샷 데이터 없음!")
-                    _error.value = "해당 모델(ID: ${item.modelId})의 시세 데이터가 DB에 없습니다."
-                }
+
+                        // 명시적으로 가격 덮어쓰기 (팩토리 메서드가 0으로 초기화했을 수 있으므로)
+                        _productSet.value = baseSet.copy(
+                            bodyPrice = inputBodyPrice,
+                            lensPrice = inputLensPrice,
+                            hasBody = item.role == "BODY",
+                            hasLens = item.role == "LENS"
+                        )
+
+                        lastRecommendationIsBundle = false
+                        fetchRecommendationsForModel(item.modelId, item.condition)
+                        initializeRelatedProducts(item.modelId, item.role)
+                    }
+                    .onFailure { throwable ->
+                        Log.e("ResultsViewModel", "3. 가격 비교 실패", throwable)
+                        _productSet.value = ProductSet(
+                            name = item.modelName,
+                            combinedPrice = item.price,
+                            // [핵심] 실패 시에도 올바른 변수를 사용
+                            bodyPrice = inputBodyPrice,
+                            lensPrice = inputLensPrice,
+                            grade = item.condition,
+                            hasBody = item.role == "BODY",
+                            hasLens = item.role == "LENS"
+                        )
+                        lastRecommendationIsBundle = false
+                        fetchRecommendationsForModel(item.modelId, item.condition)
+                        initializeRelatedProducts(item.modelId, item.role)
+                    }
+            } else {
+                Log.e("ResultsViewModel", "2. 스냅샷 데이터 없음!")
+                _error.value = "해당 모델의 시세 데이터가 없습니다."
             }
-            .onFailure { throwable ->
-                Log.e("ResultsViewModel", "2. 스냅샷 로드 실패: ${throwable.message}", throwable)
-                _error.value = "스냅샷 로드 실패: ${throwable.message}"
-                _priceSnapshots.value = emptyList()
-            }
+        }.onFailure { throwable ->
+            Log.e("ResultsViewModel", "2. 스냅샷 로드 실패", throwable)
+            _error.value = "스냅샷 로드 실패: ${throwable.message}"
+            _priceSnapshots.value = emptyList()
+        }
 
         _isLoading.value = false
         Log.d("ResultsViewModel", "========== API 호출 완료 ==========")
     }
+
     private suspend fun handleBundleProduct(response: AnalyzeUrlResponse) {
         val bodyItem = response.items.find { it.role == "BODY" }
         val lensItem = response.items.find { it.role == "LENS" }
+
 
         if (bodyItem == null || lensItem == null) {
             _error.value = "번들 구성품 정보가 부족합니다. (Body/Lens 식별 실패)"
             _isLoading.value = false
             return
         }
+
+        // [수정] ID와 조건뿐만 아니라 '이름'도 저장합니다.
+        bundleBodyId = bodyItem.modelId
+        bundleLensId = lensItem.modelId
+        bundleBodyCondition = bodyItem.condition
+        bundleLensCondition = lensItem.condition
+        // 추가된 부분
+        bundleBodyName = bodyItem.modelName
+        bundleLensName = lensItem.modelName
+
+
+        // [추가] 초기 상태는 'combined' (합본)
+        _selectedComponent.value = "combined"
 
         _modelName.value = "${bodyItem.modelName} + ${lensItem.modelName}"
         Log.d("ResultsViewModel", "[Bundle] 처리 시작: Body(${bodyItem.modelId}) + Lens(${lensItem.modelId})")
@@ -508,13 +543,20 @@ class ResultsViewModel : ViewModel() {
 
         bundleCompareResult
             .onSuccess { compareResponse ->
-                _productSet.value = ProductSet.fromBundleResponse(
+                val baseSet = ProductSet.fromBundleResponse(
                     name = _modelName.value,
                     bundlePrice = response.bundleTotalPrice,
                     response = compareResponse,
                     hasBody = true,
                     hasLens = true
                 )
+                // 2. [핵심 수정] 여기에 URL 분석에서 나온 '진짜 내 가격'을 덮어씌웁니다.
+                // 이렇게 해야 그래프 상단에 평균가가 아닌 "내 상품 가격"이 뜹니다.
+                _productSet.value = baseSet.copy(
+                    bodyPrice = bodyItem.price, // URL 분석 결과의 바디 가격
+                    lensPrice = lensItem.price  // URL 분석 결과의 렌즈 가격
+                )
+
                 lastRecommendationIsBundle = true
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
@@ -533,8 +575,65 @@ class ResultsViewModel : ViewModel() {
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
 
+        // 마지막에 한 번 호출 (기본값: 바디 기준)
+        // 사용자가 "번들 옵션 -> 바디 조회만"을 원하셨으므로, combined일 때도 바디 ID로 조회합니다.
+        fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
+        initializeRelatedProducts(bodyItem.modelId, "BODY") // 초기 연관 상품: 바디
+
         _isLoading.value = false
     }
+
+    /**
+     * [신규] UI에서 탭(합본/바디/렌즈)을 눌렀을 때 호출하는 함수
+     */
+    fun selectComponentTab(componentType: String) {
+        _selectedComponent.value = componentType
+
+        // 번들 모드가 아니면(단일 상품이면) 아무것도 안 함
+        if (bundleBodyId == null || bundleLensId == null) return
+
+        val targetModelId: Long
+        val targetCondition: String
+        val targetUnitType: String
+
+        // 사용자 요청 로직 반영:
+        // 1. 번들(Combined) -> 바디 ID 사용 (기본)
+        // 2. 바디(Body) -> 바디 ID 사용
+        // 3. 렌즈(Lens) -> 렌즈 ID 사용
+        when (componentType) {
+            "lens" -> {
+                targetModelId = bundleLensId!!
+                targetCondition = bundleLensCondition
+                targetUnitType = "LENS"
+                // [추가] 화면 이름을 렌즈 이름으로 변경
+                _modelName.value = bundleLensName
+            }
+            "body" -> {
+                targetModelId = bundleBodyId!!
+                targetCondition = bundleBodyCondition
+                targetUnitType = "BODY"
+                // [추가] 화면 이름을 바디 이름으로 변경
+                _modelName.value = bundleBodyName
+            }
+            else -> { // combined
+                targetModelId = bundleBodyId!!
+                targetCondition = bundleBodyCondition
+                targetUnitType = "BODY"
+                // [추가] 화면 이름을 다시 번들 전체 이름으로 복구
+                _modelName.value = "$bundleBodyName + $bundleLensName"
+            }
+        }
+
+        Log.d("ResultsViewModel", "[TabChange] $componentType 선택됨 -> ModelID: $targetModelId 조회 시작")
+
+        // 1. 추천 매물 새로고침 (근처 시세)
+        fetchRecommendationsForModel(targetModelId, targetCondition)
+
+        // 2. 연관 상품 새로고침
+        // 기존 필터를 유지할지, 초기화할지는 선택 사항입니다. 여기서는 깔끔하게 초기화합니다.
+        initializeRelatedProducts(targetModelId, targetUnitType)
+    }
+
     private fun createCombinedSnapshots(
         bodySnapshots: List<ModelPriceSnapshot>,
         lensSnapshots: List<ModelPriceSnapshot>,

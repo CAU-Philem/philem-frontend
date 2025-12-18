@@ -97,7 +97,15 @@ class ResultsActivity : ComponentActivity() {
             val regionSearchError by viewModel.regionSearchError.collectAsState()
             val selectedItemType by viewModel.selectedItemType.collectAsState()
             var showRegionSearch by remember { mutableStateOf(false) }
+            val selectedComponent by viewModel.selectedComponent.collectAsState()
 
+            val currentReferencePrice = productSet?.let { set ->
+                when (selectedComponent) {
+                    "body" -> set.bodyPrice      // 바디 탭 -> 바디 가격 기준
+                    "lens" -> set.lensPrice      // 렌즈 탭 -> 렌즈 가격 기준
+                    else -> set.combinedPrice    // 합본 탭 -> 합산 가격 기준
+                }
+            } ?: 0L
 
             PhilemTheme {
                 Surface(
@@ -126,6 +134,8 @@ class ResultsActivity : ComponentActivity() {
                                         PriceChart(
                                             snapshots = snapshots,
                                             productSet = set,
+                                            selectedComponent = selectedComponent, // ViewModel 상태 전달
+                                            onComponentSelected = viewModel::selectComponentTab, // 탭 변경 시 ViewModel 함수 호출
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
@@ -133,7 +143,7 @@ class ResultsActivity : ComponentActivity() {
 
                                         RecommendationSection(
                                             regionName = regionName,
-                                            productName = set.name.ifBlank { modelName.ifBlank { "이 상품" } },
+                                            productName = modelName.ifBlank { "이 상품" },
                                             recommendations = recommendations,
                                             selectedGrade = selectedRecommendationGrade,
                                             onGradeSelected = viewModel::selectRecommendationGrade,
@@ -146,7 +156,7 @@ class ResultsActivity : ComponentActivity() {
                                             },
                                             selectedItemType = selectedItemType,
                                             onToggleItemType = viewModel::toggleItemType,
-                                            referencePrice = set.combinedPrice
+                                            referencePrice = currentReferencePrice
                                         )
 
                                         Spacer(modifier = Modifier.height(32.dp))

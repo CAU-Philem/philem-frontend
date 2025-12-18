@@ -32,19 +32,10 @@ import kotlin.math.roundToInt
 fun PriceChart(
     snapshots: List<ModelPriceSnapshot>,
     productSet: ProductSet,
+    selectedComponent: String,
+    onComponentSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 번들이면 "combined", 단일 상품이면 해당 타입으로 초기화
-    val initialComponent = remember(productSet) {
-        when {
-            productSet.hasBody && productSet.hasLens -> "combined"  // 번들
-            productSet.hasBody -> "body"  // 바디만
-            productSet.hasLens -> "lens"  // 렌즈만
-            else -> "body"  // 기본값
-        }
-    }
-
-    var selectedComponent by remember(productSet) { mutableStateOf(initialComponent) }
     var touchedIndex by remember { mutableStateOf<Int?>(null) }
     var touchedGrade by remember { mutableStateOf<String?>(null) }
 
@@ -205,110 +196,77 @@ fun PriceChart(
                     }
 
                     // 할인율 배지 (한 줄 표시)
-                    if (latestDiscountPercent != 0 || latestDiscountDirection != "SAME") {
-                        when (latestDiscountDirection) {
-                            "LOWER" -> {
+                    // 할인율 배지 (한 줄 표시)
+                    // 1. 차이가 있는 경우 (0이 아님)
+                    if (latestDiscountPercent != 0) {
+                        when {
+                            latestDiscountPercent > 0 -> { // LOWER (저렴)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFE8F5E9),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        Color(0xFF4CAF50).copy(alpha = 0.3f)
-                                    )
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4CAF50).copy(alpha = 0.3f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Text(
-                                            text = "↓",
-                                            fontSize = 18.sp,
-                                            color = Color(0xFF4CAF50),
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Text("↓", fontSize = 18.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
                                         Text(
                                             text = "$latestMonthText 대비 ${kotlin.math.abs(latestDiscountPercent)}%",
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF2E7D32),
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
+                                            fontSize = 14.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                             }
-                            "HIGHER" -> {
+                            latestDiscountPercent < 0 -> { // HIGHER (비쌈)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFFFEBEE),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        Color(0xFFE53935).copy(alpha = 0.3f)
-                                    )
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE53935).copy(alpha = 0.3f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Text(
-                                            text = "↑",
-                                            fontSize = 18.sp,
-                                            color = Color(0xFFE53935),
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Text("↑", fontSize = 18.sp, color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                                         Text(
                                             text = "$latestMonthText 대비 ${kotlin.math.abs(latestDiscountPercent)}%",
-                                            fontSize = 14.sp,
-                                            color = Color(0xFFC62828),
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                            else -> {
-                                if (latestDiscountPercent != 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFFF5F5F5)
-                                    ) {
-                                        Text(
-                                            text = "$latestMonthText ±${kotlin.math.abs(latestDiscountPercent)}%",
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF616161),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                } else {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFFF5F5F5)
-                                    ) {
-                                        Text(
-                                            text = "$latestMonthText 평균가",
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF616161),
-                                            fontWeight = FontWeight.Medium
+                                            fontSize = 14.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                             }
                         }
-                    } else {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF5F5F5)
-                        ) {
-                            Text(
-                                text = "$latestMonthText 시세 분석중",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                fontSize = 13.sp,
-                                color = Color(0xFF616161),
-                                fontWeight = FontWeight.Medium
-                            )
+                    }
+                    // 2. 차이가 0인 경우 (같거나, 데이터 없음)
+                    else {
+                        // [핵심] 시세 데이터가 진짜 있어서 0인지(정상), 없어서 0인지(분석중) 구분
+                        if (latestAvgPrice > 0) {
+                            // 데이터가 있는데 차이가 0임 -> "평균 시세"
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF5F5F5)
+                            ) {
+                                Text(
+                                    text = "$latestMonthText 평균 시세",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    fontSize = 13.sp, color = Color(0xFF616161), fontWeight = FontWeight.Medium
+                                )
+                            }
+                        } else {
+                            // 데이터가 없어서 0임 -> "분석중" (이게 진짜 else)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF5F5F5)
+                            ) {
+                                Text(
+                                    text = "시세 정보 부족", // 혹은 "분석중"
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    fontSize = 13.sp, color = Color(0xFF9E9E9E), fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -320,8 +278,8 @@ fun PriceChart(
         // 바디/합본/렌즈 선택 버튼 (번들 상품일 때만 표시)
         if (productSet.hasBody && productSet.hasLens) {
             ComponentSelector(
-                selectedComponent = selectedComponent,
-                onComponentSelected = { selectedComponent = it }
+                selectedComponent = selectedComponent, // 파라미터 값 사용
+                onComponentSelected = onComponentSelected // 파라미터 함수 사용
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
