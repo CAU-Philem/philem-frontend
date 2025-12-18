@@ -143,7 +143,8 @@ class ResultsActivity : ComponentActivity() {
                                                 showRegionSearch = true
                                             },
                                             selectedItemType = selectedItemType,
-                                            onToggleItemType = viewModel::toggleItemType
+                                            onToggleItemType = viewModel::toggleItemType,
+                                                    referencePrice = set.combinedPrice
                                         )
 
                                         Spacer(modifier = Modifier.height(32.dp))
@@ -568,7 +569,8 @@ private fun RecommendationSection(
     onRetry: () -> Unit,
     onRegionClick: () -> Unit,
     selectedItemType: String,
-    onToggleItemType: () -> Unit
+    onToggleItemType: () -> Unit,
+    referencePrice: Long // [추가]
 ) {
     val gradeOptions = listOf("A", "B", "C")
     val selectedList = recommendations[selectedGrade].orEmpty()
@@ -659,32 +661,52 @@ private fun RecommendationSection(
             }
 
             else -> {
-                RecommendationList(list = selectedList)
+                RecommendationList(list = selectedList, referencePrice = referencePrice) // [수정] referencePrice 전달
             }
         }
     }
 }
 
 @Composable
-private fun RecommendationList(list: List<ListingSummary>) {
+private fun RecommendationList(list: List<ListingSummary>, referencePrice: Long) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(list, key = { it.listingSeq }) { item ->
-            RecommendationCard(item)
+            RecommendationCard(item, referencePrice = referencePrice) // [수정] referencePrice 전달
         }
     }
 }
 
 @Composable
-private fun RecommendationCard(item: ListingSummary) {
+private fun RecommendationCard(
+    item: ListingSummary,
+    referencePrice: Long
+) {
     val context = LocalContext.current
-    // [추가] activity 변수 정의
     val activity = context as? ResultsActivity
+
+    // 가격 비교 로직
+    val itemPrice = item.price ?: 0L
+    val priceDiff = itemPrice - referencePrice // (매물가 - 기준가)
+
+    // 퍼센트 계산 (절댓값 사용)
+    val percent = if (referencePrice > 0) {
+        (kotlin.math.abs(priceDiff).toDouble() / referencePrice * 100).toInt()
+    } else 0
+
+    // 뱃지 텍스트 및 색상 결정
+    // 쌀 때: 초록색, ▼
+    // 비쌀 때: 빨간색, ▲
+    val (badgeText, badgeColor) = when {
+        referencePrice <= 0 || itemPrice <= 0 -> "" to Color.Transparent
+        priceDiff < 0 -> "▼ $percent%" to Color(0xFF4CAF50) // 초록색 (저렴)
+        priceDiff > 0 -> "▲ $percent%" to Color(0xFFE53935) // 빨간색 (비쌈)
+        else -> "0%" to Color(0xFF757575) // 가격 동일
+    }
 
     Card(
         modifier = Modifier
             .width(220.dp)
             .clickable {
-                // 수정된 부분: 이제 activity 객체를 통해 dialog 호출이 가능합니다.
                 activity?.showSelectionDialog(item.postUrl)
             },
         shape = RoundedCornerShape(16.dp),
@@ -703,6 +725,24 @@ private fun RecommendationCard(item: ListingSummary) {
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                // [수정] 가격 비교 뱃지 (화살표 + 퍼센트)
+                if (badgeText.isNotEmpty()) {
+                    Text(
+                        text = badgeText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart) // 왼쪽 상단
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(badgeColor)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                // 기존 등급 뱃지 (오른쪽 상단)
                 Text(
                     text = "${item.condition}급",
                     color = Color.White,
