@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 개발용: localhost/10.0.2.2에 대해 HTTP 통신 허용 -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">특정_도메인_주소</domain>
+        <!-- IP 주소의 경우 아래와 같이 추가 -->
+        <domain includeSubdomains="true">13.125.216.158</domain>
     </domain-config>
 </network-security-config>
-
+    
