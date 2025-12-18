@@ -901,10 +901,10 @@ private fun RelatedProductsSection(
     onClearFilters: () -> Unit
 ) {
     val totalFilterCount = filters.conditions.size +
-                          filters.brands.size +
-                          filters.cameraTypes.size +
-                          filters.mounts.size +
-                          filters.sensorFormats.size
+            filters.brands.size +
+            filters.cameraTypes.size +
+            filters.mounts.size +
+            filters.sensorFormats.size
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -931,7 +931,6 @@ private fun RelatedProductsSection(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 구현 상태 표시
                 Text(
                     text = "멀티 필터 지원",
                     fontSize = 10.sp,
@@ -942,7 +941,6 @@ private fun RelatedProductsSection(
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
 
-                // 필터 초기화 버튼
                 if (totalFilterCount > 0) {
                     TextButton(
                         onClick = onClearFilters,
@@ -961,21 +959,29 @@ private fun RelatedProductsSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(modifier = Modifier.fillMaxWidth()) {
+        // 고정 높이 및 스크롤 영역
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(600.dp)
+        ) {
             // 왼쪽: 필터 메뉴
             Column(
                 modifier = Modifier
                     .width(140.dp)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFF5F5F5))
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // ✅ 수정: 'it' 대신 'value'를 사용하여 명확하게 전달
                 FilterSection(
                     title = "등급",
                     options = listOf("A", "B", "C"),
                     selected = filters.conditions,
-                    onToggle = { onFilterToggle("condition", it) }
+                    onToggle = { value -> onFilterToggle("condition", value) }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -984,7 +990,7 @@ private fun RelatedProductsSection(
                     title = "브랜드",
                     options = listOf("Sony", "Nikon", "Canon", "Fujifilm", "Tamron", "Samyang", "Viltrox"),
                     selected = filters.brands,
-                    onToggle = { onFilterToggle("brand", it) }
+                    onToggle = { value -> onFilterToggle("brand", value) }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -992,8 +998,8 @@ private fun RelatedProductsSection(
                 PriceFilterSection(
                     minPrice = filters.minPrice,
                     maxPrice = filters.maxPrice,
-                    onMinPriceChange = { onFilterToggle("minPrice", it) },
-                    onMaxPriceChange = { onFilterToggle("maxPrice", it) }
+                    onMinPriceChange = { value -> onFilterToggle("minPrice", value) },
+                    onMaxPriceChange = { value -> onFilterToggle("maxPrice", value) }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -1002,7 +1008,7 @@ private fun RelatedProductsSection(
                     title = "카메라 타입",
                     options = listOf("Mirrorless", "DSLR"),
                     selected = filters.cameraTypes,
-                    onToggle = { onFilterToggle("cameraType", it) },
+                    onToggle = { value -> onFilterToggle("cameraType", value) },
                     displayNames = mapOf("Mirrorless" to "미러리스", "DSLR" to "DSLR")
                 )
 
@@ -1012,7 +1018,7 @@ private fun RelatedProductsSection(
                     title = "센서 크기",
                     options = listOf("FULL_FRAME", "APS_C"),
                     selected = filters.sensorFormats,
-                    onToggle = { onFilterToggle("sensorFormat", it) },
+                    onToggle = { value -> onFilterToggle("sensorFormat", value) },
                     displayNames = mapOf("FULL_FRAME" to "풀프레임", "APS_C" to "APS-C")
                 )
             }
@@ -1020,62 +1026,34 @@ private fun RelatedProductsSection(
             Spacer(modifier = Modifier.width(12.dp))
 
             // 오른쪽: 상품 리스트
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 when {
                     isLoading -> {
                         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
                     }
-
                     error != null -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
-                        ) {
+                        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("연관 제품을 불러오지 못했습니다.", fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(error, fontSize = 12.sp, color = Color(0xFF5D4037))
+                                Text("오류 발생", fontWeight = FontWeight.Bold)
+                                Text(error, fontSize = 12.sp)
                             }
                         }
                     }
-
                     products.isEmpty() -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "해당 조건의 상품이 없습니다.",
-                                        color = Color.Gray,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    if (totalFilterCount > 0) {
-                                        Text(
-                                            "필터를 조정해보세요",
-                                            color = Color(0xFF9E9E9E),
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
+                        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))) {
+                            Box(modifier = Modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+                                Text("상품이 없습니다.", color = Color.Gray)
                             }
                         }
                     }
-
                     else -> {
-                        // 세로 스크롤 레이아웃으로 표시
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             products.forEach { product ->
                                 RelatedProductCard(product)
@@ -1126,13 +1104,13 @@ private fun FilterSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggle(option) }
+                    .clickable { onToggle(option) } // 👈 여기 983라인 근처: onToggle 호출 확인
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Checkbox(
                     checked = option in selected,
-                    onCheckedChange = { onToggle(option) },
+                    onCheckedChange = { onToggle(option) }, // 👈 여기도 확인
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
