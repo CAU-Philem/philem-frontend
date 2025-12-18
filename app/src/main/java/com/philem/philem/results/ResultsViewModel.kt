@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /**
  * ResultsActivity를 위한 UI 상태
@@ -446,39 +448,56 @@ class ResultsViewModel : ViewModel() {
         _isLoading.value = false
         Log.d("ResultsViewModel", "========== API 호출 완료 ==========")
     }
-
     private suspend fun handleBundleProduct(response: AnalyzeUrlResponse) {
         val bodyItem = response.items.find { it.role == "BODY" }
         val lensItem = response.items.find { it.role == "LENS" }
 
         if (bodyItem == null || lensItem == null) {
-            _error.value = "번들 상품이지만 바디 또는 렌즈 정보가 없습니다."
+            _error.value = "번들 구성품 정보가 부족합니다. (Body/Lens 식별 실패)"
             _isLoading.value = false
             return
         }
 
         _modelName.value = "${bodyItem.modelName} + ${lensItem.modelName}"
+        Log.d("ResultsViewModel", "[Bundle] 처리 시작: Body(${bodyItem.modelId}) + Lens(${lensItem.modelId})")
 
-        // 바디와 렌즈 스냅샷을 각각 조회
-        val bodySnapshotsResult = repository.getSnapshots(bodyItem.modelId, months = 24)
-        val lensSnapshotsResult = repository.getSnapshots(lensItem.modelId, months = 24)
+        // 1. 병렬로 API 호출 (async 사용)
+        val bodyDeferred = viewModelScope.async { repository.getSnapshots(bodyItem.modelId, months = 24) }
+        val lensDeferred = viewModelScope.async { repository.getSnapshots(lensItem.modelId, months = 24) }
 
-        val bodySnapshots = bodySnapshotsResult.getOrNull() ?: emptyList()
-        val lensSnapshots = lensSnapshotsResult.getOrNull() ?: emptyList()
+        val bodyResult = bodyDeferred.await()
+        val lensResult = lensDeferred.await()
 
-        if (bodySnapshots.isEmpty() && lensSnapshots.isEmpty()) {
-            _error.value = "바디와 렌즈 모두 시세 데이터가 없습니다."
+        // 2. 데이터 가져오기
+        val rawBodySnapshots = bodyResult.getOrNull() ?: emptyList()
+        val rawLensSnapshots = lensResult.getOrNull() ?: emptyList()
+
+        Log.d("ResultsViewModel", "[Bundle] 원본 스냅샷: Body=${rawBodySnapshots.size}건, Lens=${rawLensSnapshots.size}건")
+
+        // 3. [핵심 수정] UI를 위해 componentType을 강제로 "body", "lens"로 통일 (태깅)
+        // copy() 함수를 사용하려면 ModelPriceSnapshot이 data class여야 합니다. (이미 그렇습니다)
+        val taggedBodySnapshots = rawBodySnapshots.map { it.copy(_componentType = "body") }
+        val taggedLensSnapshots = rawLensSnapshots.map { it.copy(_componentType = "lens") }
+
+        // 4. 합산 스냅샷 생성 ("combined" 태그는 createCombinedSnapshots 안에서 생성됨)
+        val combinedSnapshots = createCombinedSnapshots(rawBodySnapshots, rawLensSnapshots, bodyItem.condition)
+        Log.d("ResultsViewModel", "[Bundle] 합산 스냅샷: ${combinedSnapshots.size}건")
+
+        // 5. [핵심 수정] 이제 태그가 명확하므로 3개를 다 합쳐서 보냅니다.
+        // PriceChart.kt가 componentType으로 필터링하므로 이제 섞이지 않습니다.
+        _priceSnapshots.value = combinedSnapshots + taggedBodySnapshots + taggedLensSnapshots
+
+        // 6. 데이터 유효성 경고 로그
+        if (taggedBodySnapshots.isEmpty()) Log.e("ResultsViewModel", "⚠️ 바디 시세 데이터 없음")
+        if (taggedLensSnapshots.isEmpty()) Log.e("ResultsViewModel", "⚠️ 렌즈 시세 데이터 없음")
+
+        if (taggedBodySnapshots.isEmpty() && taggedLensSnapshots.isEmpty()) {
+            _error.value = "시세 데이터가 없습니다."
             _isLoading.value = false
             return
         }
 
-        // 합본 스냅샷 생성
-        val combinedSnapshots = createCombinedSnapshots(bodySnapshots, lensSnapshots, bodyItem.condition)
-
-        // 모든 스냅샷 병합
-        _priceSnapshots.value = combinedSnapshots + bodySnapshots + lensSnapshots
-
-        // 번들 비교 API 호출
+        // 7. 번들 가격 비교 API 호출
         val bundleCompareResult = repository.compareBundlePrice(
             response.bundleTotalPrice,
             listOf(
@@ -499,7 +518,8 @@ class ResultsViewModel : ViewModel() {
                 lastRecommendationIsBundle = true
                 fetchRecommendationsForModel(bodyItem.modelId, bodyItem.condition)
             }
-            .onFailure { throwable ->
+            .onFailure {
+                // 실패 시 기본 정보 표시
                 _productSet.value = ProductSet(
                     name = _modelName.value,
                     combinedPrice = response.bundleTotalPrice,
@@ -514,27 +534,31 @@ class ResultsViewModel : ViewModel() {
             }
 
         _isLoading.value = false
-        Log.d("ResultsViewModel", "========== API 호출 완료 ==========")
     }
-
     private fun createCombinedSnapshots(
         bodySnapshots: List<ModelPriceSnapshot>,
         lensSnapshots: List<ModelPriceSnapshot>,
         condition: String
     ): List<ModelPriceSnapshot> {
+        // 날짜 키 생성 (예: "2024-12")
         val bodyMap = bodySnapshots
             .filter { it.condition == condition }
             .associateBy { "${it.sold_year}-${it.sold_month}" }
+
         val lensMap = lensSnapshots
             .filter { it.condition == condition }
             .associateBy { "${it.sold_year}-${it.sold_month}" }
 
+        // 두 데이터 중 하나라도 있는 날짜들을 모두 모음
+        // (교집합만 하려면 bodyMap.keys.intersect(lensMap.keys) 사용)
         val allKeys = (bodyMap.keys + lensMap.keys).distinct()
 
-        return allKeys.mapNotNull { key ->
+        val result = allKeys.mapNotNull { key ->
             val body = bodyMap[key]
             val lens = lensMap[key]
 
+            // [중요] 바디와 렌즈가 모두 있는 달만 합산합니다.
+            // 하나만 있는 달도 그래프에 표시하고 싶다면 로직을 수정해야 합니다. (아래 주석 참조)
             if (body != null && lens != null) {
                 ModelPriceSnapshot(
                     condition = condition,
@@ -544,10 +568,16 @@ class ResultsViewModel : ViewModel() {
                     min_price = body.min_price + lens.min_price,
                     avg_price = body.avg_price + lens.avg_price,
                     sample_count = minOf(body.sample_count, lens.sample_count),
-                    _componentType = "combined"
+                    _componentType = "combined" // UI에서 구분할 수 있게 태그
                 )
-            } else null
+            } else {
+                // 데이터가 한쪽만 있는 경우 버림 (그래프 왜곡 방지)
+                // 만약 한쪽만 있어도 보여주려면 여기서 body?.avg_price ?: 0 처럼 처리 가능하지만 추천하지 않음.
+                null
+            }
         }.sortedWith(compareBy({ it.sold_year }, { it.sold_month }))
+
+        return result
     }
 
     fun toggleItemType() {
