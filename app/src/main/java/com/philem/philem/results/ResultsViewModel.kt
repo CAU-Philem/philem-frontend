@@ -629,16 +629,22 @@ class ResultsViewModel : ViewModel() {
             )
             else -> current
         }
-        fetchRelatedProducts()
+        // fetchRelatedProducts()  <-- [제거] 즉시 호출하지 않음
     }
 
+    // [수정] 필터 초기화 시 API 호출 제거 (UI 상태만 초기화)
+    fun clearRelatedFilters() {
+        _relatedProductFilters.value = RelatedProductFilters()
+        // fetchRelatedProducts() <-- [제거] 즉시 호출하지 않음
+    }
+
+    // [추가] 적용 버튼 클릭 시 호출할 함수
+    fun applyFilters() {
+        fetchRelatedProducts()
+    }
     /**
      * 연관 제품 필터 초기화
      */
-    fun clearRelatedFilters() {
-        _relatedProductFilters.value = RelatedProductFilters()
-        fetchRelatedProducts()
-    }
 
     /**
      * 연관 제품 추천 초기화 및 가져오기
