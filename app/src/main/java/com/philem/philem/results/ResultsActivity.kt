@@ -49,6 +49,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.net.toUri
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.LocationOn
 
 class ResultsActivity : ComponentActivity() {
 
@@ -144,7 +147,7 @@ class ResultsActivity : ComponentActivity() {
                                             },
                                             selectedItemType = selectedItemType,
                                             onToggleItemType = viewModel::toggleItemType,
-                                                    referencePrice = set.combinedPrice
+                                            referencePrice = set.combinedPrice
                                         )
 
                                         Spacer(modifier = Modifier.height(32.dp))
@@ -158,8 +161,8 @@ class ResultsActivity : ComponentActivity() {
                                             onClearFilters = viewModel::clearRelatedFilters,
                                             onApplyFilters = viewModel::applyFilters // ✅ 이 줄을 추가하세요!
                                         )
-                                     }
-                                 }
+                                    }
+                                }
                             }
 
                             else -> {
@@ -181,64 +184,124 @@ class ResultsActivity : ComponentActivity() {
 
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9C4))
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = Color(
+                                                0xFFFFF9C4
+                                            )
+                                        )
                                     ) {
                                         Column(modifier = Modifier.padding(16.dp)) {
-                                            Text("🔍 진단 정보", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(
+                                                "🔍 진단 정보",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp
+                                            )
                                             Spacer(modifier = Modifier.height(8.dp))
 
                                             if (targetUrl.isNotBlank()) {
-                                                Text("입력 URL:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    "입력 URL:",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
                                                 Text(targetUrl, fontSize = 11.sp)
                                                 Spacer(modifier = Modifier.height(8.dp))
                                             }
 
                                             analyzeResult?.let { result ->
-                                                Text("✅ URL 분석 성공", fontSize = 12.sp, color = Color(0xFF4CAF50))
-                                                Text("번들 여부: ${if (result.isBundle) "번들" else "단일"}", fontSize = 12.sp)
+                                                Text(
+                                                    "✅ URL 분석 성공",
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF4CAF50)
+                                                )
+                                                Text(
+                                                    "번들 여부: ${if (result.isBundle) "번들" else "단일"}",
+                                                    fontSize = 12.sp
+                                                )
                                                 if (result.items.isNotEmpty()) {
                                                     result.items.forEachIndexed { index, item ->
                                                         Spacer(modifier = Modifier.height(4.dp))
-                                                        Text("상품 ${index + 1}:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                        Text("  모델: ${item.modelName}", fontSize = 11.sp)
-                                                        Text("  모델ID: ${item.modelId}", fontSize = 11.sp)
+                                                        Text(
+                                                            "상품 ${index + 1}:",
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                        Text(
+                                                            "  모델: ${item.modelName}",
+                                                            fontSize = 11.sp
+                                                        )
+                                                        Text(
+                                                            "  모델ID: ${item.modelId}",
+                                                            fontSize = 11.sp
+                                                        )
                                                         Text("  역할: ${item.role}", fontSize = 11.sp)
-                                                        Text("  등급: ${item.condition}", fontSize = 11.sp)
-                                                        Text("  가격: ${item.price}원", fontSize = 11.sp)
+                                                        Text(
+                                                            "  등급: ${item.condition}",
+                                                            fontSize = 11.sp
+                                                        )
+                                                        Text(
+                                                            "  가격: ${item.price}원",
+                                                            fontSize = 11.sp
+                                                        )
                                                     }
                                                 }
                                             } ?: run {
-                                                Text("❌ URL 분석 실패", fontSize = 12.sp, color = Color.Red)
+                                                Text(
+                                                    "❌ URL 분석 실패",
+                                                    fontSize = 12.sp,
+                                                    color = Color.Red
+                                                )
                                             }
 
                                             Spacer(modifier = Modifier.height(8.dp))
 
-                                            Text("스냅샷 현황:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "스냅샷 현황:",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                             if (snapshots.isEmpty()) {
-                                                Text("❌ 스냅샷 데이터 없음",
+                                                Text(
+                                                    "❌ 스냅샷 데이터 없음",
                                                     fontSize = 12.sp,
                                                     color = Color.Red,
                                                     fontWeight = FontWeight.Bold
                                                 )
+
                                             } else {
-                                                val grouped: Map<String, List<ModelPriceSnapshot>> = snapshots.groupBy { it.componentType }
+                                                val grouped: Map<String, List<ModelPriceSnapshot>> =
+                                                    snapshots.groupBy { it.componentType }
                                                 grouped.forEach { (type: String, list: List<ModelPriceSnapshot>) ->
                                                     Text("  $type: ${list.size}건", fontSize = 11.sp)
-                                                    val byGrade: Map<String, List<ModelPriceSnapshot>> = list.groupBy { it.condition }
+                                                    val byGrade: Map<String, List<ModelPriceSnapshot>> =
+                                                        list.groupBy { it.condition }
                                                     byGrade.forEach { (grade: String, items: List<ModelPriceSnapshot>) ->
-                                                        Text("    ${grade}급: ${items.size}건", fontSize = 10.sp, color = Color.Gray)
+                                                        Text(
+                                                            "    ${grade}급: ${items.size}건",
+                                                            fontSize = 10.sp,
+                                                            color = Color.Gray
+                                                        )
                                                     }
                                                 }
                                             }
 
                                             if (error != null) {
                                                 Spacer(modifier = Modifier.height(8.dp))
-                                                Text("에러:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                Text(error ?: "", fontSize = 11.sp, color = Color.Red)
+                                                Text(
+                                                    "에러:",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    error ?: "",
+                                                    fontSize = 11.sp,
+                                                    color = Color.Red
+                                                )
                                             }
 
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Text("💡 로그캣에서 'ResultsViewModel' 태그로 상세 로그를 확인하세요",
+                                            Text(
+                                                "💡 로그캣에서 'ResultsViewModel' 태그로 상세 로그를 확인하세요",
                                                 fontSize = 10.sp,
                                                 color = Color.Gray,
                                                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
@@ -268,48 +331,49 @@ class ResultsActivity : ComponentActivity() {
             }
         }
     }
-    // 여기에 삽입하세요!
-override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    setIntent(intent) // 액티비티가 새로 생성되지 않으므로, 전달받은 새 인텐트로 교체해줍니다.
+        // 여기에 삽입하세요!
+        override fun onNewIntent(intent: Intent) {
+            super.onNewIntent(intent)
+            setIntent(intent) // 액티비티가 새로 생성되지 않으므로, 전달받은 새 인텐트로 교체해줍니다.
 
-    val newUrl = intent.getStringExtra("target_url") ?: ""
-    android.util.Log.d("ResultsActivity", "onNewIntent 호출됨 - 새 URL: '$newUrl'")
+            val newUrl = intent.getStringExtra("target_url") ?: ""
+            android.util.Log.d("ResultsActivity", "onNewIntent 호출됨 - 새 URL: '$newUrl'")
 
-    if (newUrl.isNotBlank()) {
-        // 새 URL이 들어오면 ViewModel을 통해 분석 프로세스를 다시 시작합니다.
-        viewModel.analyzeAndLoadPriceData(newUrl)
-    }
-}
-// ResultsActivity.kt 내부에 추가
-
-internal fun showSelectionDialog(url: String) {
-    val options = arrayOf("이 상품 분석하기", "당근에서 상품 확인하기")
-
-    androidx.appcompat.app.AlertDialog.Builder(this)
-        .setTitle("원하는 동작을 선택해주세요")
-        .setItems(options) { _, which ->
-            when (which) {
-                0 -> { // 분석하기
-                    val intent = Intent(this, ResultsActivity::class.java).apply {
-                        putExtra("target_url", url)
-                        // 새 액티비티를 스택 상단에 올리거나, 기존 액티비티를 재사용하도록 설정 가능
-                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    startActivity(intent)
-                    // 현재 액티비티를 종료하고 새로 열고 싶다면 finish() 호출
-                }
-                1 -> { // 당근에서 상품 확인하기
-                    runCatching {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                        startActivity(intent)
-                    }
-                }
+            if (newUrl.isNotBlank()) {
+                // 새 URL이 들어오면 ViewModel을 통해 분석 프로세스를 다시 시작합니다.
+                viewModel.analyzeAndLoadPriceData(newUrl)
             }
         }
-        .show()
-}
-}
+// ResultsActivity.kt 내부에 추가
+
+        internal fun showSelectionDialog(url: String) {
+            val options = arrayOf("이 상품 분석하기", "당근에서 상품 확인하기")
+
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("원하는 동작을 선택해주세요")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> { // 분석하기
+                            val intent = Intent(this, ResultsActivity::class.java).apply {
+                                putExtra("target_url", url)
+                                // 새 액티비티를 스택 상단에 올리거나, 기존 액티비티를 재사용하도록 설정 가능
+                                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            }
+                            startActivity(intent)
+                            // 현재 액티비티를 종료하고 새로 열고 싶다면 finish() 호출
+                        }
+
+                        1 -> { // 당근에서 상품 확인하기
+                            runCatching {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                startActivity(intent)
+                            }
+                        }
+                    }
+                }
+                .show()
+        }
+    }
 
 // ==============================
 // Composable 함수들
@@ -572,76 +636,102 @@ private fun RecommendationSection(
     onToggleItemType: () -> Unit,
     referencePrice: Long // [추가]
 ) {
-    val gradeOptions = listOf("A", "B", "C")
     val selectedList = recommendations[selectedGrade].orEmpty()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onRegionClick() },
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween, // 양 끝 정렬
+            verticalAlignment = Alignment.Top // 위쪽 기준 정렬
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // 왼쪽: 텍스트 영역
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = "${regionName}근처에서 ${productName} 확인하기",
+                    text = "${regionName} 근처", // 조금 줄여서 심플하게
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 20.sp,
+                    color = Color(0xFF191F28)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "동일 모델 다른 등급 추천 매물",
-                    fontSize = 13.sp,
-                    color = Color.Gray
+                    text = "${productName} 시세 확인",
+                    fontSize = 14.sp,
+                    color = Color(0xFF4E5968)
                 )
             }
-            Text(
-                text = "지역 변경",
-                color = Color(0xFF1E88E5),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+
+            // 오른쪽: 지역 변경 버튼 (둥근 스타일)
+            Surface(
+                onClick = onRegionClick,
+                shape = RoundedCornerShape(20.dp), // 둥근 알약 모양
+                color = Color(0xFFE3F2FD), // 아주 연한 파란색 배경
+                contentColor = Color(0xFF1E88E5) // 진한 파란색 텍스트/아이콘
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn, // 위치 아이콘 추가
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "지역 변경",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                gradeOptions.forEach { grade ->
-                    FilterChip(
-                        selected = selectedGrade == grade,
-                        onClick = { onGradeSelected(grade) },
-                        label = { Text("${grade}급") }
+                listOf("A", "B", "C").forEach { grade ->
+                    ModernGradeChip(
+                        text = "${grade}급",
+                        isSelected = selectedGrade == grade,
+                        onClick = { onGradeSelected(grade) }
                     )
                 }
             }
 
-            OutlinedButton(
-                onClick = onToggleItemType,
-                modifier = Modifier.height(32.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color(0xFF1E88E5)
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = Color(0xFF1E88E5)
-                )
+            // 2. 우측: 단품/번들 필터 (깔끔한 텍스트 버튼 스타일)
+            // 기존 OutlinedButton 대신 더 심플하게 변경
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onToggleItemType() }
+                    .background(Color(0xFFF2F4F6)) // 아주 연한 회색 배경
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Text(
-                    text = when (selectedItemType) {
-                        "SINGLE" -> "단품"
-                        "BUNDLE" -> "번들"
-                        else -> "전체"
-                    },
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 필터 아이콘 느낌 (선택사항)
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = null,
+                        tint = Color(0xFF4E5968),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = when (selectedItemType) {
+                            "SINGLE" -> "단품만 보기"
+                            "BUNDLE" -> "번들 포함"
+                            else -> "전체 보기"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF4E5968) // 차분한 진회색
+                    )
+                }
             }
         }
 
@@ -684,40 +774,43 @@ private fun RecommendationCard(
     val context = LocalContext.current
     val activity = context as? ResultsActivity
 
-    // 가격 비교 로직
+    // 가격 차이 계산 로직 (동일)
     val itemPrice = item.price ?: 0L
-    val priceDiff = itemPrice - referencePrice // (매물가 - 기준가)
-
-    // 퍼센트 계산 (절댓값 사용)
+    val priceDiff = itemPrice - referencePrice
     val percent = if (referencePrice > 0) {
         (kotlin.math.abs(priceDiff).toDouble() / referencePrice * 100).toInt()
     } else 0
 
-    // 뱃지 텍스트 및 색상 결정
-    // 쌀 때: 초록색, ▼
-    // 비쌀 때: 빨간색, ▲
-    val (badgeText, badgeColor) = when {
-        referencePrice <= 0 || itemPrice <= 0 -> "" to Color.Transparent
-        priceDiff < 0 -> "▼ $percent%" to Color(0xFF4CAF50) // 초록색 (저렴)
-        priceDiff > 0 -> "▲ $percent%" to Color(0xFFE53935) // 빨간색 (비쌈)
-        else -> "0%" to Color(0xFF757575) // 가격 동일
+    // 색상 팔레트 정의 (세련된 컬러)
+    val priceColor = Color(0xFF191F28) // 진한 검정 (토스/당근 스타일)
+    val subTextColor = Color(0xFF8B95A1) // 연한 회색
+    val badgeGreen = Color(0xFFE8F5E9) // 아주 연한 초록 배경
+    val badgeGreenText = Color(0xFF2E7D32) // 진한 초록 텍스트
+    val badgeRed = Color(0xFFFFEBEE)   // 아주 연한 빨강 배경
+    val badgeRedText = Color(0xFFC62828)   // 진한 빨강 텍스트
+
+    val (badgeText, badgeBg, badgeTxtColor) = when {
+        referencePrice <= 0 || itemPrice <= 0 -> Triple("", Color.Transparent, Color.Transparent)
+        priceDiff < 0 -> Triple("▼ $percent%", badgeGreen, badgeGreenText)
+        priceDiff > 0 -> Triple("▲ $percent%", badgeRed, badgeRedText)
+        else -> Triple("-", Color(0xFFF5F5F5), Color(0xFF757575))
     }
 
     Card(
         modifier = Modifier
-            .width(220.dp)
-            .clickable {
-                activity?.showSelectionDialog(item.postUrl)
-            },
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .width(200.dp) // 너비를 살짝 줄여서 오밀조밀하게
+            .padding(end = 12.dp) // 카드 간 간격
+            .clickable { activity?.showSelectionDialog(item.postUrl) },
+        shape = RoundedCornerShape(16.dp), // 둥글기 증가
+        colors = CardDefaults.cardColors(containerColor = Color.White), // [핵심] 배경 흰색
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp) // [핵심] 살짝 그림자
     ) {
         Column {
+            // 1. 이미지 영역
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .background(Color(0xFFE0E0E0))
+                    .height(130.dp)
             ) {
                 AsyncImage(
                     model = item.thumbnailUrl ?: item.postUrl,
@@ -726,88 +819,82 @@ private fun RecommendationCard(
                     contentScale = ContentScale.Crop
                 )
 
-                // [수정] 가격 비교 뱃지 (화살표 + 퍼센트)
-                if (badgeText.isNotEmpty()) {
-                    Text(
-                        text = badgeText,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .align(Alignment.TopStart) // 왼쪽 상단
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(badgeColor)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-
-                // 기존 등급 뱃지 (오른쪽 상단)
-                Text(
-                    text = "${item.condition}급",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
+                // 등급 뱃지 (심플하게 우측 상단)
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xAA000000))
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.6f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "${item.price?.formatAsWon() ?: "가격 미정"}원",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color(0xFF1E88E5)
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = item.postUrl,
-                    fontSize = 11.sp,
-                    color = Color.Gray,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = item.updatedAt?.formatAsDate() ?: item.boostedAt?.formatAsDate() ?: "정보 없음",
+                        text = "${item.condition}급",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // 2. 텍스트 정보 영역
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp) // 내부 여백 넉넉하게
+            ) {
+                // 가격 비교 뱃지 (텍스트 위로 올림)
+                if (badgeText.isNotEmpty()) {
+                    Text(
+                        text = badgeText,
+                        color = badgeTxtColor,
                         fontSize = 11.sp,
-                        color = Color(0xFF757575),
-                        modifier = Modifier.weight(1f)
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(badgeBg)
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+
+                // 가격 (가장 강조)
+                Text(
+                    text = "${item.price?.formatAsWon() ?: "가격 미정"}원",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = priceColor
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 지역 및 시간 (URL 제거하고 유용한 정보만)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.regionName ?: "지역정보 없음",
+                        fontSize = 12.sp,
+                        color = subTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    if (!item.regionName.isNullOrBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .widthIn(min = 60.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFBDBDBD))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = item.regionName,
-                                fontSize = 10.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Visible,
-                                softWrap = false
-                            )
-                        }
+                    // 2. 날짜 데이터 가공 (없으면 null 반환하도록 로직 처리 필요하지만, 여기선 간단히)
+                    val dateText = item.updatedAt?.formatAsDate()
+
+                    // 3. 날짜가 있을 때만 '·' 과 '날짜'를 그림
+                    if (!dateText.isNullOrBlank()) {
+                        Text(
+                            text = " · ",
+                            fontSize = 12.sp,
+                            color = subTextColor
+                        )
+
+                        Text(
+                            text = dateText,
+                            fontSize = 12.sp,
+                            color = subTextColor
+                        )
                     }
                 }
             }
@@ -872,41 +959,58 @@ private fun RegionSearchDialog(
                     value = query,
                     onValueChange = onQueryChange,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("예: 역삼, 서초") }
+                    placeholder = { Text("예: 역삼동, 서초동", color = Color.Gray) },
+                    shape = RoundedCornerShape(12.dp), // 검색창 둥글게
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1E88E5),
+                        unfocusedBorderColor = Color(0xFFE0E0E0),
+                        focusedContainerColor = Color(0xFFFAFAFA),
+                        unfocusedContainerColor = Color(0xFFFAFAFA)
+                    ),
+                    singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
+                Box(modifier = Modifier.height(300.dp)) {
+                    when {
+                        isLoading -> {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
 
-                when {
-                    isLoading -> {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
+                        error != null -> {
+                            Text(text = error, color = Color.Red, fontSize = 12.sp)
+                        }
 
-                    error != null -> {
-                        Text(text = error, color = Color.Red, fontSize = 12.sp)
-                    }
+                        results.isEmpty() -> {
+                            Text(text = "검색 결과가 없습니다.", color = Color.Gray, fontSize = 12.sp)
+                        }
 
-                    results.isEmpty() -> {
-                        Text(text = "검색 결과가 없습니다.", color = Color.Gray, fontSize = 12.sp)
-                    }
-
-                    else -> {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(results) { region ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { onRegionSelected(region) }
-                                        .background(Color(0xFFF5F5F5))
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(region.name, fontWeight = FontWeight.Bold)
-                                        Text("ID: ${region.id}", fontSize = 11.sp, color = Color.Gray)
+                        else -> {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(results) { region ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { onRegionSelected(region) }
+                                            .background(Color(0xFFF5F5F5))
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text(region.name, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "ID: ${region.id}",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                        Text(
+                                            text = "선택",
+                                            color = Color(0xFF1E88E5),
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                    Text(text = "선택", color = Color(0xFF1E88E5), fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1286,6 +1390,7 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
 //                    context.startActivity(intent)
 //                }
         shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column {
@@ -1293,7 +1398,7 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .background(Color(0xFFE0E0E0))
+                    .background(Color(0xFFF2F4F6))
             ) {
                 // 상품 썸네일 이미지 표시
                 AsyncImage(
@@ -1325,7 +1430,8 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color(0xFF191F28)
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1334,10 +1440,10 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                     text = "${product.price?.formatAsWon() ?: "가격 미정"}원",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color(0xFF1E88E5)
+                    color = Color(0xFF191F28)
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1350,8 +1456,8 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                                 "DSLR" -> "DSLR"
                                 else -> it
                             },
-                            fontSize = 11.sp,
-                            color = Color.Gray
+                            fontSize = 12.sp,
+                            color = Color(0xFF8B95A1)
                         )
                     }
 
@@ -1363,7 +1469,7 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
                                 else -> it
                             },
                             fontSize = 11.sp,
-                            color = Color.Gray
+                            color = Color(0xFF8B95A1)
                         )
                     }
                 }
@@ -1371,3 +1477,34 @@ private fun RelatedProductCard(product: com.philem.philem.domain.pricing.dto.Rel
         }
     }
 }
+    @Composable
+    fun ModernGradeChip(
+        text: String,
+        isSelected: Boolean,
+        onClick: () -> Unit
+    ) {
+        // 색상 정의
+        val backgroundColor = if (isSelected) Color(0xFF191F28) else Color.White
+        val contentColor = if (isSelected) Color.White else Color(0xFF8B95A1)
+        val borderColor = if (isSelected) Color.Transparent else Color(0xFFE1E2E4)
+
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(20.dp), // 완전한 타원형 (알약 모양)
+            color = backgroundColor,
+            border = BorderStroke(1.dp, borderColor), // 선택 안됐을 때만 얇은 테두리
+            modifier = Modifier.height(32.dp) // 높이 고정으로 통일감
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.padding(horizontal = 16.dp) // 좌우 여백 넉넉히
+            ) {
+                Text(
+                    text = text,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor
+                )
+            }
+        }
+    }
